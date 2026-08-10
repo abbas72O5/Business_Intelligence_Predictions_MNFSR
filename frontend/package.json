@@ -16,6 +16,7 @@
     "plotly.js": "^3.7.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
+    "react-dropzone": "^20.1.0",
     "react-plotly.js": "^4.1.0",
     "react-router-dom": "^7.18.2",
     "reactflow": "^11.11.4"
