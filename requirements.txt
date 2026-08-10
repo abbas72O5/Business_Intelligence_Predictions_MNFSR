@@ -1,0 +1,11 @@
+fastapi
+uvicorn[standard]
+motor
+pandas
+openpyxl
+duckdb
+prophet
+python-multipart
+python-jose[cryptography]
+passlib[bcrypt]
+python-dotenv
