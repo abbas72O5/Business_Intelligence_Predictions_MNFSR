@@ -43,25 +43,41 @@ export default function Register() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 font-sans">
-      <div className="sm:mx-auto sm:w-full sm:max-w-md text-center mb-6">
-        <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-          Account Registration
-        </h2>
-        <p className="mt-2 text-center text-sm text-gray-600">
-          Ministry BI & Analytics Portal
-        </p>
+    <div className="min-h-screen flex font-sans">
+      {/* Left Side: 70% Dark Green */}
+      <div className="hidden lg:flex lg:w-[70%] bg-green-900 flex-col justify-center items-center text-white px-12 relative overflow-hidden">
+        <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white via-transparent to-transparent"></div>
+
+        <div className="relative z-10 text-center max-w-3xl">
+          <ShieldCheck className="mx-auto h-24 w-24 text-yellow-500 mb-8" />
+          <h1 className="text-5xl font-extrabold mb-6 tracking-tight">
+            Account Registration
+          </h1>
+          <p className="text-xl text-green-100 max-w-2xl mx-auto leading-relaxed">
+            Create an official account to join your department's collaborative BI environment. Note: New accounts require admin verification.
+          </p>
+        </div>
       </div>
 
-      <div className="sm:mx-auto sm:w-full sm:max-w-md">
-        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10 border-t-4 border-green-800">
+      {/* Right Side: 30% White */}
+      <div className="w-full lg:w-[30%] bg-white flex flex-col justify-center py-12 px-8 shadow-2xl z-10">
+        <div className="sm:mx-auto sm:w-full sm:max-w-md mb-8">
+          <h2 className="text-3xl font-extrabold text-gray-900">
+            Register
+          </h2>
+          <p className="mt-2 text-sm text-gray-600">
+            Join the Ministry BI Portal
+          </p>
+        </div>
+
+        <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <form className="space-y-6" onSubmit={handleSubmit}>
             {error && (
               <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded text-sm text-center">
                 {error}
               </div>
             )}
-            
+
             <div>
               <label htmlFor="department" className="block text-sm font-medium text-gray-700">
                 Department
@@ -114,14 +130,14 @@ export default function Register() {
             <div>
               <button
                 type="submit"
-                className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-800 hover:bg-green-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-700 transition-colors"
+                className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-800 hover:bg-green-900 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-700 transition-colors mt-2"
               >
                 Register
               </button>
             </div>
           </form>
 
-          <div className="mt-6 text-center">
+          <div className="mt-8 text-center">
             <p className="text-sm text-gray-600">
               Already have an account?{' '}
               <Link to="/login" className="font-medium text-green-700 hover:text-green-600">
