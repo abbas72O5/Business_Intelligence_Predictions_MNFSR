@@ -1,8 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import ReactFlow, { 
-  ReactFlowProvider, 
-  addEdge, 
-  useNodesState, 
+import ReactFlow, {
+  ReactFlowProvider,
+  addEdge,
+  useNodesState,
   useEdgesState,
   Controls,
   Background,
@@ -12,9 +12,9 @@ import type { Connection, Edge } from 'reactflow';
 import 'reactflow/dist/style.css';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
-import { Database, FileSpreadsheet, ListTree, PlayCircle, PlusCircle, X } from 'lucide-react';
+import { Database, FileSpreadsheet, ListTree, PlayCircle, PlusCircle, X, Copy, Trash2, Settings, AlertTriangle, Eraser } from 'lucide-react';
 import TableNode from '../components/TableNode';
-import type { FileMetadata } from './DataUpload';
+import type { TableMetadata } from './DataUpload';
 
 const nodeTypes = {
   tableNode: TableNode,
@@ -23,15 +23,15 @@ const nodeTypes = {
 // We wrap the actual component in ReactFlowProvider so we can use useReactFlow hooks if needed later
 function DataSelectionCanvas() {
   const { token } = useAuth();
-  const [files, setFiles] = useState<FileMetadata[]>([]);
+  const [files, setFiles] = useState<TableMetadata[]>([]);
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
-  
+
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-  
+
   // Track selected columns across all nodes
   // Keyed by `${nodeId}-${fileId}-${columnName}`
-  const [selectedColumns, setSelectedColumns] = useState<Map<string, {nodeId: string, fileId: string, filename: string, colName: string, type: string}>>(new Map());
+  const [selectedColumns, setSelectedColumns] = useState<Map<string, { nodeId: string, tableId: string, filename: string, colName: string, type: string, alias: string }>>(new Map());
 
   const [previewData, setPreviewData] = useState<any[] | null>(null);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
@@ -39,6 +39,10 @@ function DataSelectionCanvas() {
   const [newTableName, setNewTableName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const [nodeContextMenu, setNodeContextMenu] = useState<{ id: string, top: number, left: number } | null>(null);
+  const [selectedEdge, setSelectedEdge] = useState<Edge | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{ title: string, message: string, onConfirm: () => void } | null>(null);
 
   const fetchFiles = useCallback(() => {
     axios.get('http://localhost:8000/files/', {
@@ -53,7 +57,7 @@ function DataSelectionCanvas() {
 
   // Update nodes data whenever selectedColumns changes so they can render the checked state
   useEffect(() => {
-    setNodes((nds) => 
+    setNodes((nds) =>
       nds.map((node) => {
         // Collect which columns are selected for this specific node
         const nodeSelectedCols = new Set<string>();
@@ -72,12 +76,12 @@ function DataSelectionCanvas() {
     );
   }, [selectedColumns, setNodes]);
 
-  const onToggleColumn = useCallback((nodeId: string, fileId: string, filename: string, colName: string, type: string, isChecked: boolean) => {
+  const onToggleColumn = useCallback((nodeId: string, tableId: string, filename: string, colName: string, type: string, isChecked: boolean) => {
     setSelectedColumns((prev) => {
       const next = new Map(prev);
-      const key = `${nodeId}-${fileId}-${colName}`;
+      const key = `${nodeId}-${tableId}-${colName}`;
       if (isChecked) {
-        next.set(key, { nodeId, fileId, filename, colName, type });
+        next.set(key, { nodeId, tableId, filename, colName, type, alias: colName });
       } else {
         next.delete(key);
       }
@@ -85,9 +89,219 @@ function DataSelectionCanvas() {
     });
   }, []);
 
-  const onConnect = useCallback((params: Connection | Edge) => setEdges((eds) => addEdge(params, eds)), [setEdges]);
+  // Restore and Persist State
+  useEffect(() => {
+    try {
+      const savedNodes = localStorage.getItem('dataSelectionNodes');
+      if (savedNodes) {
+        const parsedNodes = JSON.parse(savedNodes).map((n: any) => ({
+          ...n,
+          data: {
+            ...n.data,
+            table_id: n.data.table_id || n.data.file_id,
+            selectedColumns: new Set(n.data.selectedColumnsArray || []),
+            onToggleColumn: (nId: string, fId: string, col: string, typ: string, chk: boolean) =>
+              onToggleColumn(nId, fId, n.data.filename, col, typ, chk)
+          }
+        }));
+        setNodes(parsedNodes);
+      }
 
-  const onDragStart = (event: React.DragEvent, file: FileMetadata) => {
+      const savedEdges = localStorage.getItem('dataSelectionEdges');
+      if (savedEdges) {
+        setEdges(JSON.parse(savedEdges));
+      }
+
+      const savedCols = localStorage.getItem('dataSelectionColumns');
+      if (savedCols) {
+        setSelectedColumns(new Map(JSON.parse(savedCols)));
+      }
+    } catch (e) {
+      console.error("Failed to restore canvas state", e);
+    }
+  }, [setNodes, setEdges, onToggleColumn]);
+
+  useEffect(() => {
+    if (nodes.length > 0) {
+      const serializableNodes = nodes.map(n => ({
+        ...n,
+        data: {
+          ...n.data,
+          onToggleColumn: undefined, // Cannot serialize functions
+          selectedColumnsArray: Array.from(n.data.selectedColumns || [])
+        }
+      }));
+      localStorage.setItem('dataSelectionNodes', JSON.stringify(serializableNodes));
+    } else {
+      localStorage.removeItem('dataSelectionNodes');
+    }
+  }, [nodes]);
+
+  useEffect(() => {
+    if (edges.length > 0) {
+      localStorage.setItem('dataSelectionEdges', JSON.stringify(edges));
+    } else {
+      localStorage.removeItem('dataSelectionEdges');
+    }
+  }, [edges]);
+
+  useEffect(() => {
+    if (selectedColumns.size > 0) {
+      localStorage.setItem('dataSelectionColumns', JSON.stringify(Array.from(selectedColumns.entries())));
+    } else {
+      localStorage.removeItem('dataSelectionColumns');
+    }
+  }, [selectedColumns]);
+
+  const handleAliasChange = (key: string, newAlias: string) => {
+    setSelectedColumns((prev) => {
+      const next = new Map(prev);
+      const item = next.get(key);
+      if (item) {
+        next.set(key, { ...item, alias: newAlias });
+      }
+      return next;
+    });
+  };
+
+  const onConnect = useCallback(async (params: Connection | Edge) => {
+    const edgeId = `e_${params.source}_${params.target}_${Date.now()}`;
+    const newEdge = {
+      ...params,
+      id: edgeId,
+      data: { joinType: 'INNER', cardinality: '1:1', isActive: true },
+      style: { stroke: '#16a34a', strokeWidth: 2, strokeDasharray: 'none' }
+    };
+    setEdges((eds) => addEdge(newEdge, eds));
+    
+    // Save to backend
+    const sourceNode = nodes.find(n => n.id === params.source);
+    const targetNode = nodes.find(n => n.id === params.target);
+    if (sourceNode && targetNode) {
+      try {
+        await axios.post('http://localhost:8000/relationships/', {
+          relationship_id: edgeId,
+          source_table_id: sourceNode.data.table_id,
+          target_table_id: targetNode.data.table_id,
+          source_column: params.sourceHandle?.replace('-source', ''),
+          target_column: params.targetHandle?.replace('-target', ''),
+          cardinality: '1:1',
+          join_type: 'INNER',
+          is_active: true,
+          created_by: 'system' // Backend will override with actual user ID
+        }, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      } catch (err) {
+        console.error("Failed to save relationship", err);
+      }
+    }
+  }, [setEdges, nodes, token]);
+
+  const onNodeContextMenu = useCallback((event: React.MouseEvent, node: any) => {
+    event.preventDefault();
+    setNodeContextMenu({ id: node.id, top: event.clientY, left: event.clientX });
+  }, []);
+
+  const closeNodeContextMenu = () => setNodeContextMenu(null);
+
+  const duplicateNode = () => {
+    if (!nodeContextMenu) return;
+    const nodeToDuplicate = nodes.find(n => n.id === nodeContextMenu.id);
+    if (nodeToDuplicate) {
+      const newNode = {
+        ...nodeToDuplicate,
+        id: `node_${Date.now()}`,
+        position: { x: nodeToDuplicate.position.x + 50, y: nodeToDuplicate.position.y + 50 },
+        data: {
+          ...nodeToDuplicate.data,
+          selectedColumns: new Set()
+        }
+      };
+      setNodes((nds) => nds.concat(newNode));
+    }
+    closeNodeContextMenu();
+  };
+
+  const deleteNode = () => {
+    if (!nodeContextMenu) return;
+    setNodes((nds) => nds.filter(n => n.id !== nodeContextMenu.id));
+    setEdges((eds) => eds.filter(e => e.source !== nodeContextMenu.id && e.target !== nodeContextMenu.id));
+
+    // Also remove from selectedColumns
+    setSelectedColumns((prev) => {
+      const next = new Map(prev);
+      for (const key of prev.keys()) {
+        if (key.startsWith(`${nodeContextMenu.id}-`)) {
+          next.delete(key);
+        }
+      }
+      return next;
+    });
+    closeNodeContextMenu();
+  };
+
+  const onEdgeClick = useCallback((event: React.MouseEvent, edge: Edge) => {
+    event.preventDefault();
+    setSelectedEdge(edge);
+  }, []);
+
+  const updateEdgeSettings = async (joinType: string, cardinality: string, isActive: boolean) => {
+    if (!selectedEdge) return;
+    const edgeId = selectedEdge.id;
+    const currentEdge = selectedEdge;
+    
+    setEdges((eds) => eds.map(e => {
+      if (e.id === edgeId) {
+        return {
+          ...e,
+          data: { joinType, cardinality, isActive },
+          style: {
+            stroke: isActive ? '#16a34a' : '#9ca3af',
+            strokeWidth: 2,
+            strokeDasharray: isActive ? 'none' : '5,5'
+          }
+        };
+      }
+      return e;
+    }));
+    setSelectedEdge(null);
+    
+    const sourceNode = nodes.find(n => n.id === currentEdge.source);
+    const targetNode = nodes.find(n => n.id === currentEdge.target);
+    if (sourceNode && targetNode) {
+      try {
+        await axios.post('http://localhost:8000/relationships/', {
+          relationship_id: edgeId,
+          source_table_id: sourceNode.data.table_id,
+          target_table_id: targetNode.data.table_id,
+          source_column: currentEdge.sourceHandle?.replace('-source', ''),
+          target_column: currentEdge.targetHandle?.replace('-target', ''),
+          cardinality,
+          join_type: joinType,
+          is_active: isActive,
+          created_by: 'system'
+        }, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      } catch (err) {
+        console.error("Failed to update relationship", err);
+      }
+    }
+  };
+
+  const onEdgesChangeIntercept = useCallback((changes: any) => {
+    changes.forEach((c: any) => {
+      if (c.type === 'remove') {
+        axios.delete(`http://localhost:8000/relationships/${c.id}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        }).catch(console.error);
+      }
+    });
+    onEdgesChange(changes);
+  }, [onEdgesChange, token]);
+
+  const onDragStart = (event: React.DragEvent, file: TableMetadata) => {
     event.dataTransfer.setData('application/reactflow', JSON.stringify(file));
     event.dataTransfer.effectAllowed = 'move';
   };
@@ -106,26 +320,26 @@ function DataSelectionCanvas() {
 
       if (!fileDataStr || !reactFlowBounds) return;
 
-      const fileMeta: FileMetadata = JSON.parse(fileDataStr);
-      
+      const fileMeta: TableMetadata = JSON.parse(fileDataStr);
+
       const position = {
         x: event.clientX - reactFlowBounds.left,
         y: event.clientY - reactFlowBounds.top,
       };
 
       const newNodeId = `node_${Date.now()}`;
-      
+
       const newNode = {
         id: newNodeId,
         type: 'tableNode',
         position,
-        data: { 
+        data: {
           filename: fileMeta.filename,
-          file_id: fileMeta.file_id,
+          table_id: fileMeta.table_id,
           columns: fileMeta.columns,
           selectedColumns: new Set(),
-          onToggleColumn: (nId: string, fId: string, col: string, typ: string, chk: boolean) => 
-             onToggleColumn(nId, fId, fileMeta.filename, col, typ, chk)
+          onToggleColumn: (nId: string, fId: string, col: string, typ: string, chk: boolean) =>
+            onToggleColumn(nId, fId, fileMeta.filename, col, typ, chk)
         },
       };
 
@@ -136,27 +350,18 @@ function DataSelectionCanvas() {
 
   const buildQueryPayload = () => {
     const columns = Array.from(selectedColumns.values()).map(col => ({
-      file_id: col.fileId,
-      column: col.colName
+      table_id: col.tableId,
+      column: col.colName,
+      alias: col.alias || col.colName
     }));
 
-    const joins = edges.map(edge => {
-      const sourceNode = nodes.find(n => n.id === edge.source);
-      const targetNode = nodes.find(n => n.id === edge.target);
-      if (!sourceNode || !targetNode) return null;
-
-      const sourceCol = edge.sourceHandle?.replace('-source', '');
-      const targetCol = edge.targetHandle?.replace('-target', '');
-
-      return {
-        source_file_id: sourceNode.data.file_id,
-        source_col: sourceCol,
-        target_file_id: targetNode.data.file_id,
-        target_col: targetCol
-      };
+    const joins = edges.filter(e => e.data?.isActive !== false).map(edge => {
+      // Joins will be built on the backend from Relationships, 
+      // but we return nothing here since QueryRequest just needs columns
+      return null;
     }).filter(Boolean);
 
-    return { columns, joins };
+    return { columns };
   };
 
   const handlePreview = async () => {
@@ -170,7 +375,8 @@ function DataSelectionCanvas() {
       });
       setPreviewData(res.data);
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Preview failed');
+      const detail = err.response?.data?.detail;
+      setError(typeof detail === 'string' ? detail : JSON.stringify(detail) || 'Preview failed');
       setPreviewData(null);
     } finally {
       setLoading(false);
@@ -193,10 +399,67 @@ function DataSelectionCanvas() {
       setNewTableName('');
       fetchFiles(); // Refresh sidebar
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Generation failed');
+      const detail = err.response?.data?.detail;
+      setError(typeof detail === 'string' ? detail : JSON.stringify(detail) || 'Generation failed');
     } finally {
       setLoading(false);
     }
+  };
+
+  const deleteFile = (e: React.MouseEvent, tableId: string) => {
+    e.stopPropagation();
+    setConfirmAction({
+      title: 'Delete Table',
+      message: 'Are you sure you want to permanently delete this table? This will remove it from the canvas and database.',
+      onConfirm: async () => {
+        try {
+          await axios.delete(`http://localhost:8000/files/${tableId}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          // Remove from sidebar
+          setFiles(files.filter(f => f.table_id !== tableId));
+          // Remove nodes representing this file
+          setNodes(nds => nds.filter(n => n.data.table_id !== tableId));
+          // Remove associated edges
+          const removedNodeIds = new Set(nodes.filter(n => n.data.table_id === tableId).map(n => n.id));
+          setEdges(eds => eds.filter(e => !removedNodeIds.has(e.source) && !removedNodeIds.has(e.target)));
+          // Remove from selectedColumns
+          setSelectedColumns(prev => {
+            const next = new Map(prev);
+            for (const key of prev.keys()) {
+              if (removedNodeIds.has(key.split('-')[0])) next.delete(key);
+            }
+            return next;
+          });
+        } catch (err) {
+          console.error('Failed to delete file', err);
+          setError('Failed to delete file.');
+        } finally {
+          setConfirmAction(null);
+        }
+      }
+    });
+  };
+
+  const clearCanvas = () => {
+    setConfirmAction({
+      title: 'Clear Canvas',
+      message: 'Are you sure you want to clear all tables and connections from the canvas? This cannot be undone.',
+      onConfirm: () => {
+        edges.forEach(e => {
+          axios.delete(`http://localhost:8000/relationships/${e.id}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          }).catch(console.error);
+        });
+        setNodes([]);
+        setEdges([]);
+        setSelectedColumns(new Map());
+        localStorage.removeItem('dataSelectionNodes');
+        localStorage.removeItem('dataSelectionEdges');
+        localStorage.removeItem('dataSelectionColumns');
+        setConfirmAction(null);
+      }
+    });
   };
 
   return (
@@ -206,8 +469,15 @@ function DataSelectionCanvas() {
           <h1 className="text-2xl font-bold text-gray-900">Data Canvas</h1>
           <p className="text-sm text-gray-500 mt-1">Drag files onto the canvas and connect columns to join tables.</p>
         </div>
-        <div className="flex space-x-3">
-          <button 
+        <div className="flex items-center space-x-3">
+          <button
+            onClick={clearCanvas}
+            className="flex items-center bg-white hover:bg-red-50 text-red-600 px-4 py-2 rounded-md font-bold shadow-sm transition-colors border border-red-200"
+          >
+            <Eraser className="h-5 w-5 mr-2" />
+            Clear Canvas
+          </button>
+          <button
             onClick={handlePreview}
             className="flex items-center bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-md font-bold shadow-sm transition-colors border border-gray-300 disabled:opacity-50"
             disabled={selectedColumns.size === 0}
@@ -215,7 +485,7 @@ function DataSelectionCanvas() {
             <PlayCircle className="h-5 w-5 mr-2" />
             Preview
           </button>
-          <button 
+          <button
             onClick={() => setIsGenerateModalOpen(true)}
             className="flex items-center bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md font-bold shadow-sm transition-colors disabled:opacity-50"
             disabled={selectedColumns.size === 0}
@@ -226,8 +496,11 @@ function DataSelectionCanvas() {
         </div>
       </div>
 
-      <div className="flex flex-col lg:flex-row gap-4 flex-1 min-h-[70vh] h-full">
-        
+      <div
+        className="flex flex-col lg:flex-row gap-4 w-full resize-y overflow-hidden border-b-2 border-transparent hover:border-gray-200 transition-colors"
+        style={{ minHeight: '600px', height: '85vh', maxHeight: '200vh' }}
+      >
+
         {/* Sidebar */}
         <div className="w-full lg:w-64 bg-white rounded-lg shadow-sm border border-gray-200 flex flex-col overflow-hidden">
           <div className="px-4 py-3 bg-gray-50 border-b border-gray-200 font-bold text-gray-700 text-sm flex items-center">
@@ -239,13 +512,20 @@ function DataSelectionCanvas() {
               <p className="text-xs text-gray-500 text-center mt-4">No data available. Upload files first.</p>
             ) : (
               files.map(f => (
-                <div 
-                  key={f.file_id}
+                <div
+                  key={f.table_id}
                   draggable
                   onDragStart={(e) => onDragStart(e, f)}
-                  className="bg-white border border-gray-200 rounded-md p-3 cursor-grab active:cursor-grabbing hover:border-green-400 hover:shadow-sm transition-all"
+                  className="bg-white border border-gray-200 rounded-md p-3 cursor-grab active:cursor-grabbing hover:border-green-400 hover:shadow-sm transition-all group relative"
                 >
-                  <div className="flex items-center">
+                  <button
+                    onClick={(e) => deleteFile(e, f.table_id)}
+                    className="absolute top-2 right-2 p-1 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                    title="Delete Table"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                  <div className="flex items-center pr-6">
                     <FileSpreadsheet className="h-5 w-5 text-green-600 mr-2 flex-shrink-0" />
                     <span className="text-sm font-medium text-gray-900 truncate" title={f.filename}>{f.filename}</span>
                   </div>
@@ -263,27 +543,32 @@ function DataSelectionCanvas() {
               nodes={nodes}
               edges={edges}
               onNodesChange={onNodesChange}
-              onEdgesChange={onEdgesChange}
+              onEdgesChange={onEdgesChangeIntercept}
               onConnect={onConnect}
               onDrop={onDrop}
               onDragOver={onDragOver}
+              onNodeContextMenu={onNodeContextMenu}
+              onEdgeClick={onEdgeClick}
+              onPaneClick={closeNodeContextMenu}
               nodeTypes={nodeTypes}
               fitView
               className="bg-gray-50"
             >
               <Background color="#ccc" gap={16} />
               <Controls />
-              <MiniMap 
-                nodeStrokeColor={(n) => {
-                  if (n.type === 'tableNode') return '#16a34a';
-                  return '#eee';
-                }}
-                nodeColor={(n) => {
-                  return '#fff';
-                }}
-                nodeBorderRadius={8}
-                className="bg-white border border-gray-200 shadow-sm rounded-lg"
-              />
+              {nodeContextMenu && (
+                <div
+                  style={{ top: nodeContextMenu.top, left: nodeContextMenu.left }}
+                  className="fixed z-50 bg-white rounded-md shadow-lg border border-gray-200 py-1 min-w-[160px]"
+                >
+                  <button onClick={duplicateNode} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center">
+                    <Copy className="h-4 w-4 mr-2" /> Duplicate
+                  </button>
+                  <button onClick={deleteNode} className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center">
+                    <Trash2 className="h-4 w-4 mr-2" /> Delete
+                  </button>
+                </div>
+              )}
             </ReactFlow>
           </div>
 
@@ -304,7 +589,13 @@ function DataSelectionCanvas() {
                     <div key={`${col.nodeId}-${col.colName}`} className="flex items-center bg-green-50 border border-green-200 rounded-full px-3 py-1">
                       <span className="text-xs text-gray-500 mr-1 truncate max-w-[100px]" title={col.filename}>{col.filename}</span>
                       <span className="text-xs font-bold text-green-800 mx-1">.</span>
-                      <span className="text-sm font-bold text-gray-900">{col.colName}</span>
+                      <input
+                        type="text"
+                        value={col.alias}
+                        onChange={(e) => handleAliasChange(`${col.nodeId}-${col.tableId}-${col.colName}`, e.target.value)}
+                        className="bg-transparent text-sm font-bold text-gray-900 border-b border-transparent hover:border-green-300 focus:border-green-500 focus:outline-none w-28 px-1"
+                        title="Rename column in final table"
+                      />
                       <span className="ml-2 text-[10px] font-mono bg-white px-1 border border-gray-200 rounded text-gray-500">{col.type}</span>
                     </div>
                   ))}
@@ -373,8 +664,8 @@ function DataSelectionCanvas() {
             <div className="p-6">
               {error && <div className="mb-4 bg-red-50 text-red-700 p-3 rounded border border-red-200 text-sm">{error}</div>}
               <label className="block text-sm font-medium text-gray-700 mb-1">Table Name</label>
-              <input 
-                type="text" 
+              <input
+                type="text"
                 value={newTableName}
                 onChange={e => setNewTableName(e.target.value)}
                 placeholder="e.g. Combined_Project_Finances"
@@ -384,6 +675,104 @@ function DataSelectionCanvas() {
                 <button onClick={() => setIsGenerateModalOpen(false)} className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md text-sm font-bold">Cancel</button>
                 <button onClick={handleGenerate} disabled={loading} className="px-4 py-2 text-white bg-green-600 hover:bg-green-700 rounded-md text-sm font-bold disabled:opacity-50">
                   {loading ? 'Generating...' : 'Generate & Save'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Relationship Settings Modal */}
+      {selectedEdge && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+              <div className="flex items-center text-lg font-bold text-gray-900">
+                <Settings className="h-5 w-5 mr-2 text-gray-500" /> Relationship Settings
+              </div>
+              <button onClick={() => setSelectedEdge(null)} className="text-gray-400 hover:text-gray-600">
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Join Type</label>
+                <select
+                  defaultValue={selectedEdge.data?.joinType || 'INNER'}
+                  id="joinTypeSelect"
+                  className="w-full border border-gray-300 rounded-md p-2 focus:ring-green-500 focus:border-green-500"
+                >
+                  <option value="INNER">Inner Join (Match Both)</option>
+                  <option value="LEFT">Left Join (Keep All Left)</option>
+                  <option value="RIGHT">Right Join (Keep All Right)</option>
+                </select>
+                <p className="text-xs text-gray-500 mt-1">Determines how rows are combined if there are missing matches.</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Cardinality</label>
+                <select
+                  defaultValue={selectedEdge.data?.cardinality || '1:1'}
+                  id="cardinalitySelect"
+                  onChange={(e) => {
+                    const warn = document.getElementById('mn-warning');
+                    if (warn) warn.style.display = e.target.value === 'M:N' ? 'flex' : 'none';
+                  }}
+                  className="w-full border border-gray-300 rounded-md p-2 focus:ring-green-500 focus:border-green-500"
+                >
+                  <option value="1:1">One-to-One (1:1)</option>
+                  <option value="1:N">One-to-Many (1:N)</option>
+                  <option value="M:N">Many-to-Many (M:N)</option>
+                </select>
+                <div id="mn-warning" style={{ display: selectedEdge.data?.cardinality === 'M:N' ? 'flex' : 'none' }} className="mt-2 text-amber-700 bg-amber-50 p-2 rounded text-xs items-center border border-amber-200">
+                  <AlertTriangle className="h-4 w-4 mr-1 flex-shrink-0" />
+                  Use Many-to-Many with caution; it can artificially inflate row counts (Cartesian Product).
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Active Relationship</label>
+                  <p className="text-xs text-gray-500">Temporarily disable this join</p>
+                </div>
+                <input
+                  type="checkbox"
+                  id="activeToggle"
+                  defaultChecked={selectedEdge.data?.isActive !== false}
+                  className="h-5 w-5 text-green-600 rounded focus:ring-green-500 cursor-pointer"
+                />
+              </div>
+
+              <div className="flex justify-end space-x-3 pt-4">
+                <button onClick={() => setSelectedEdge(null)} className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md text-sm font-bold">Cancel</button>
+                <button onClick={() => {
+                  const jt = (document.getElementById('joinTypeSelect') as HTMLSelectElement).value;
+                  const cd = (document.getElementById('cardinalitySelect') as HTMLSelectElement).value;
+                  const act = (document.getElementById('activeToggle') as HTMLInputElement).checked;
+                  updateEdgeSettings(jt, cd, act);
+                }} className="px-4 py-2 text-white bg-green-600 hover:bg-green-700 rounded-md text-sm font-bold">
+                  Save Settings
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirmation Modal */}
+      {confirmAction && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-sm">
+            <div className="p-6">
+              <div className="flex items-center justify-center w-12 h-12 rounded-full bg-red-100 mb-4">
+                <AlertTriangle className="h-6 w-6 text-red-600" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900 mb-2">{confirmAction.title}</h3>
+              <p className="text-sm text-gray-500 mb-6">{confirmAction.message}</p>
+              <div className="flex justify-end space-x-3">
+                <button onClick={() => setConfirmAction(null)} className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md text-sm font-bold">Cancel</button>
+                <button onClick={confirmAction.onConfirm} className="px-4 py-2 text-white bg-red-600 hover:bg-red-700 rounded-md text-sm font-bold">
+                  Confirm
                 </button>
               </div>
             </div>

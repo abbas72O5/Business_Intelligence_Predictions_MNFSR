@@ -30,7 +30,7 @@ export default function TableNode({ data, id }: NodeProps) {
                 <input
                   type="checkbox"
                   checked={isSelected}
-                  onChange={(e) => data.onToggleColumn(id, data.file_id, col.name, col.type, e.target.checked)}
+                  onChange={(e) => data.onToggleColumn(id, data.table_id, col.name, col.type, e.target.checked)}
                   className="rounded text-green-600 focus:ring-green-500 cursor-pointer"
                 />
                 <span className={`text-sm truncate ${isSelected ? 'font-medium text-gray-900' : 'text-gray-600'}`} title={col.name}>

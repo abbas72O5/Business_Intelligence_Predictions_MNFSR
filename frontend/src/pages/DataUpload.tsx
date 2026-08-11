@@ -2,16 +2,16 @@ import { useState, useCallback, useEffect } from 'react';
 import { useDropzone } from 'react-dropzone';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
-import { UploadCloud, FileSpreadsheet, FileText, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { UploadCloud, FileSpreadsheet, FileText, CheckCircle2, AlertCircle, Loader2, Trash2, AlertTriangle } from 'lucide-react';
 
 export interface ColumnMetadata {
   name: string;
   type: string;
 }
 
-export interface FileMetadata {
+export interface TableMetadata {
   id: string;
-  file_id: string;
+  table_id: string;
   filename: string;
   columns: ColumnMetadata[];
   department: string;
@@ -21,14 +21,15 @@ export interface FileMetadata {
 
 export default function DataUpload() {
   const { token } = useAuth();
-  const [files, setFiles] = useState<FileMetadata[]>([]);
+  const [files, setFiles] = useState<TableMetadata[]>([]);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const [selectedFile, setSelectedFile] = useState<FileMetadata | null>(null);
+  const [selectedFile, setSelectedFile] = useState<TableMetadata | null>(null);
   const [previewData, setPreviewData] = useState<any[]>([]);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<{title: string, message: string, onConfirm: () => void} | null>(null);
 
   const fetchFiles = useCallback(async () => {
     try {
@@ -77,6 +78,33 @@ export default function DataUpload() {
     }
   }, [token, fetchFiles]);
 
+  const deleteFile = (e: React.MouseEvent, tableId: string) => {
+    e.stopPropagation();
+    setConfirmAction({
+      title: 'Delete File',
+      message: 'Are you sure you want to permanently delete this table? This cannot be undone.',
+      onConfirm: async () => {
+        try {
+          await axios.delete(`http://localhost:8000/files/${tableId}`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          setFiles(files.filter(f => f.table_id !== tableId));
+          if (selectedFile?.table_id === tableId) {
+            setSelectedFile(null);
+            setPreviewData([]);
+          }
+          setSuccess('File deleted successfully.');
+          setTimeout(() => setSuccess(''), 3000);
+        } catch (err: any) {
+          console.error('Failed to delete file', err);
+          setError(err.response?.data?.detail || 'Failed to delete file.');
+        } finally {
+          setConfirmAction(null);
+        }
+      }
+    });
+  };
+
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
@@ -86,11 +114,11 @@ export default function DataUpload() {
     multiple: false
   });
 
-  const handleSelectFile = async (fileMeta: FileMetadata) => {
+  const handleSelectFile = async (fileMeta: TableMetadata) => {
     setSelectedFile(fileMeta);
     setPreviewLoading(true);
     try {
-      const res = await axios.get(`http://localhost:8000/files/${fileMeta.file_id}/preview`, {
+      const res = await axios.get(`http://localhost:8000/files/${fileMeta.table_id}/preview`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setPreviewData(res.data);
@@ -166,24 +194,32 @@ export default function DataUpload() {
                 <p className="text-sm text-gray-500 text-center py-6">No files uploaded yet.</p>
               ) : (
                 files.map((f) => (
-                  <button
-                    key={f.file_id}
-                    onClick={() => handleSelectFile(f)}
-                    className={`w-full text-left px-3 py-3 rounded-md flex items-center transition-colors ${selectedFile?.file_id === f.file_id
-                        ? 'bg-green-50 border border-green-200'
-                        : 'hover:bg-gray-50 border border-transparent'
-                      }`}
-                  >
-                    {f.filename.endsWith('.csv') ? (
-                      <FileText className="h-5 w-5 text-blue-500 mr-3 flex-shrink-0" />
-                    ) : (
-                      <FileSpreadsheet className="h-5 w-5 text-green-600 mr-3 flex-shrink-0" />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-900 truncate">{f.filename}</p>
-                      <p className="text-xs text-gray-500">{new Date(f.uploaded_at).toLocaleDateString()}</p>
-                    </div>
-                  </button>
+                  <div key={f.table_id} className="relative group">
+                    <button
+                      onClick={() => handleSelectFile(f)}
+                      className={`w-full text-left px-3 py-3 rounded-md flex items-center transition-colors ${selectedFile?.table_id === f.table_id
+                          ? 'bg-green-50 border border-green-200'
+                          : 'hover:bg-gray-50 border border-transparent'
+                        }`}
+                    >
+                      {f.filename.endsWith('.csv') ? (
+                        <FileText className="h-5 w-5 text-blue-500 mr-3 flex-shrink-0" />
+                      ) : (
+                        <FileSpreadsheet className="h-5 w-5 text-green-600 mr-3 flex-shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0 pr-6">
+                        <p className="text-sm font-medium text-gray-900 truncate">{f.filename}</p>
+                        <p className="text-xs text-gray-500">{new Date(f.uploaded_at).toLocaleDateString()}</p>
+                      </div>
+                    </button>
+                    <button 
+                      onClick={(e) => deleteFile(e, f.table_id)}
+                      className="absolute top-1/2 -translate-y-1/2 right-2 p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                      title="Delete Table"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
                 ))
               )}
             </div>
@@ -276,6 +312,27 @@ export default function DataUpload() {
           )}
         </div>
       </div>
+
+      {/* Confirmation Modal */}
+      {confirmAction && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-sm">
+            <div className="p-6">
+              <div className="flex items-center justify-center w-12 h-12 rounded-full bg-red-100 mb-4">
+                <AlertTriangle className="h-6 w-6 text-red-600" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900 mb-2">{confirmAction.title}</h3>
+              <p className="text-sm text-gray-500 mb-6">{confirmAction.message}</p>
+              <div className="flex justify-end space-x-3">
+                <button onClick={() => setConfirmAction(null)} className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md text-sm font-bold">Cancel</button>
+                <button onClick={confirmAction.onConfirm} className="px-4 py-2 text-white bg-red-600 hover:bg-red-700 rounded-md text-sm font-bold">
+                  Confirm
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

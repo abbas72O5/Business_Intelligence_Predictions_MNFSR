@@ -5,7 +5,7 @@ import os
 from datetime import datetime
 
 from database import db
-from models.file import FileMetadata, ColumnMetadata
+from models.metadata import TableMetadata, ColumnMetadata
 from routers.auth import get_current_user
 
 router = APIRouter(prefix="/files", tags=["files"])
@@ -27,7 +27,7 @@ def map_dtype_to_string(dtype):
     else:
         return 'String'
 
-@router.post("/upload", response_model=list[FileMetadata])
+@router.post("/upload", response_model=list[TableMetadata])
 async def upload_file(file: UploadFile = File(...), current_user = Depends(get_current_user)):
     if not file.filename.endswith(('.csv', '.xlsx')):
         raise HTTPException(status_code=400, detail="Invalid file type. Only .csv and .xlsx are allowed.")
@@ -55,7 +55,7 @@ async def upload_file(file: UploadFile = File(...), current_user = Depends(get_c
         if df.empty:
             continue
             
-        file_id = str(uuid.uuid4())
+        table_id = str(uuid.uuid4())
         
         if sheet_name:
             base, ext = os.path.splitext(file.filename)
@@ -63,19 +63,24 @@ async def upload_file(file: UploadFile = File(...), current_user = Depends(get_c
         else:
             formatted_filename = file.filename
             
-        parquet_path = os.path.join(STORAGE_DIR, f"{file_id}.parquet")
+        parquet_path = os.path.join(STORAGE_DIR, f"{table_id}.parquet")
         
         # Ensure column names are strings for Parquet serialization
         df.columns = df.columns.astype(str)
         
+        # PyArrow strictly requires uniform types per column. Pandas 'object' dtype 
+        # often contains mixed types (e.g. ints and strings). We cast these to string to prevent ArrowTypeError.
+        for col in df.select_dtypes(include=['object']).columns:
+            df[col] = df[col].astype(str)
+            
         df.to_parquet(parquet_path, engine="pyarrow")
         
         columns_meta = []
         for col, dtype in df.dtypes.items():
             columns_meta.append(ColumnMetadata(name=str(col), type=map_dtype_to_string(dtype)).model_dump())
             
-        file_doc = {
-            "file_id": file_id,
+        table_doc = {
+            "table_id": table_id,
             "filename": formatted_filename,
             "storage_path": parquet_path,
             "columns": columns_meta,
@@ -85,19 +90,20 @@ async def upload_file(file: UploadFile = File(...), current_user = Depends(get_c
             "uploaded_by": str(current_user["_id"])
         }
         
-        result = await db.files.insert_one(file_doc)
+        result = await db.table_metadata.insert_one(table_doc)
         
         uploaded_files.append(
-            FileMetadata(
+            TableMetadata(
                 id=str(result.inserted_id),
-                file_id=file_id,
+                table_id=table_id,
                 filename=formatted_filename,
+
                 storage_path=parquet_path,
                 columns=columns_meta,
-                department=file_doc["department"],
-                visibility=file_doc["visibility"],
-                uploaded_at=file_doc["uploaded_at"],
-                uploaded_by=file_doc["uploaded_by"]
+                department=table_doc["department"],
+                visibility=table_doc["visibility"],
+                uploaded_at=table_doc["uploaded_at"],
+                uploaded_by=table_doc["uploaded_by"]
             )
         )
         
@@ -106,17 +112,17 @@ async def upload_file(file: UploadFile = File(...), current_user = Depends(get_c
         
     return uploaded_files
 
-@router.get("/", response_model=list[FileMetadata])
+@router.get("/", response_model=list[TableMetadata])
 async def get_files(current_user = Depends(get_current_user)):
     department = current_user.get("department")
     query = {"department": department} if department else {}
-    cursor = db.files.find(query).sort("uploaded_at", -1)
+    cursor = db.table_metadata.find(query).sort("uploaded_at", -1)
     files = await cursor.to_list(length=100)
     
     return [
-        FileMetadata(
+        TableMetadata(
             id=str(f["_id"]),
-            file_id=f["file_id"],
+            table_id=f["table_id"],
             filename=f["filename"],
             storage_path=f["storage_path"],
             columns=f["columns"],
@@ -127,9 +133,9 @@ async def get_files(current_user = Depends(get_current_user)):
         ) for f in files
     ]
 
-@router.get("/{file_id}/preview")
-async def preview_file(file_id: str, current_user = Depends(get_current_user)):
-    file_doc = await db.files.find_one({"file_id": file_id})
+@router.get("/{table_id}/preview")
+async def preview_file(table_id: str, current_user = Depends(get_current_user)):
+    file_doc = await db.table_metadata.find_one({"table_id": table_id})
     if not file_doc:
         raise HTTPException(status_code=404, detail="File not found")
         
@@ -139,3 +145,25 @@ async def preview_file(file_id: str, current_user = Depends(get_current_user)):
         return preview_data
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error reading preview: {str(e)}")
+
+@router.delete("/{table_id}")
+async def delete_file(table_id: str, current_user = Depends(get_current_user)):
+    file_record = await db.table_metadata.find_one({"table_id": table_id})
+    if not file_record:
+        raise HTTPException(status_code=404, detail="File not found")
+        
+    if current_user["role"] == "user" and file_record["uploaded_by"] != str(current_user["_id"]):
+        raise HTTPException(status_code=403, detail="Not authorized to delete this file")
+        
+    try:
+        if os.path.exists(file_record["storage_path"]):
+            os.remove(file_record["storage_path"])
+    except Exception as e:
+        print(f"Failed to delete file {file_record['storage_path']}: {e}")
+        
+    await db.table_metadata.delete_one({"table_id": table_id})
+    
+    # Also delete associated relationships
+    await db.relationships.delete_many({"$or": [{"source_table_id": table_id}, {"target_table_id": table_id}]})
+    
+    return {"status": "success", "message": "File and its relationships deleted"}

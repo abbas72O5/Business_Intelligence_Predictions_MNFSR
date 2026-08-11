@@ -1,19 +1,13 @@
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 
 class QueryColumn(BaseModel):
-    file_id: str
+    table_id: str
     column: str
-
-class QueryJoin(BaseModel):
-    source_file_id: str
-    source_col: str
-    target_file_id: str
-    target_col: str
+    alias: Optional[str] = None
 
 class QueryRequest(BaseModel):
     columns: List[QueryColumn]
-    joins: List[QueryJoin]
 
 class GenerateRequest(QueryRequest):
     table_name: str

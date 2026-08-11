@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import auth, files, query
+from routers import auth, files, query, relationships
 
 app = FastAPI(title="Ministry BI & Analytics API")
 
@@ -16,6 +16,7 @@ app.add_middleware(
 app.include_router(auth.router)
 app.include_router(files.router)
 app.include_router(query.router)
+app.include_router(relationships.router)
 
 @app.get("/")
 async def root():
