@@ -23,3 +23,9 @@ A comprehensive Business Intelligence and Analytics platform designed for minist
     - **Data Selection** (React Flow canvas)
     - **Observations** (Plotly.js visual charts)
     - **Predictions** (Meta Prophet AI forecasting)
+
+- **Hybrid Database Architecture & Data Selection:**
+  - **Metadata & Relationship Layer (MongoDB):** Acts as the central map tracking table schemas and complex user-defined relationships (Joins, Cardinality) across uploaded files.
+  - **Analytical Engine (DuckDB + Parquet):** Leverages DuckDB to dynamically execute SQL joins against highly efficient local Parquet datasets.
+  - **Interactive Data Canvas:** Utilizes React Flow to allow users to visually drag-and-drop tables, draw persistent relationship lines (e.g., INNER/LEFT joins), and selectively cherry-pick columns.
+  - **Automated Query Generation:** The backend seamlessly translates visual canvas relationships into raw SQL queries, generating new composite datasets instantly without exposing users to SQL complexity.
