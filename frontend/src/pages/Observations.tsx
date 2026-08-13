@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import Plot from 'react-plotly.js';
-import html2canvas from 'html2canvas';
+import { toPng, toJpeg } from 'html-to-image';
 import { jsPDF } from 'jspdf';
 import { LineChart, BarChart2, PieChart, ScatterChart, Settings, Database, Filter, PlusCircle, X, Trash2, Download, ChevronDown, Image as ImageIcon, FileText } from 'lucide-react';
 
@@ -234,22 +234,22 @@ export default function Observations() {
     if (!dashboardEl) return;
     
     try {
-      const canvas = await html2canvas(dashboardEl, {
+      const options = {
         backgroundColor: '#f9fafb', // matching tailwind bg-gray-50
-        scale: 2 // higher res
-      });
+        pixelRatio: 2 // higher res
+      };
 
       if (format === 'pdf') {
-        const imgData = canvas.toDataURL('image/png');
+        const dataUrl = await toPng(dashboardEl, options);
         const pdf = new jsPDF({
-          orientation: canvas.width > canvas.height ? 'l' : 'p',
+          orientation: dashboardEl.clientWidth > dashboardEl.clientHeight ? 'l' : 'p',
           unit: 'px',
-          format: [canvas.width, canvas.height]
+          format: [dashboardEl.clientWidth, dashboardEl.clientHeight]
         });
-        pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
+        pdf.addImage(dataUrl, 'PNG', 0, 0, dashboardEl.clientWidth, dashboardEl.clientHeight);
         pdf.save('dashboard-export.pdf');
       } else {
-        const dataUrl = canvas.toDataURL(`image/${format}`, 1.0);
+        const dataUrl = format === 'png' ? await toPng(dashboardEl, options) : await toJpeg(dashboardEl, options);
         const link = document.createElement('a');
         link.download = `dashboard-export.${format}`;
         link.href = dataUrl;
@@ -298,7 +298,13 @@ export default function Observations() {
           margin: { l: 50, r: 50, b: 50, t: 50, pad: 4 },
           paper_bgcolor: 'transparent',
           plot_bgcolor: 'transparent',
-          dragmode: 'pan'
+          dragmode: 'pan',
+          modebar: {
+            orientation: 'h',
+            bgcolor: '#ffffff',
+            color: '#16a34a', // tailwind green-600
+            activecolor: '#15803d'
+          }
         }}
         config={{
           displayModeBar: true,
