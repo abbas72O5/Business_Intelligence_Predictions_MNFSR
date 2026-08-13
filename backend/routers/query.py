@@ -40,14 +40,17 @@ async def build_duckdb_query(request: QueryRequest, current_user: dict):
     joined_tables = {base_table_id}
     
     if len(table_ids) > 1:
-        # Fetch relationships from DB
-        rels_cursor = db.relationships.find({
-            "is_active": True,
-            "source_table_id": {"$in": list(table_ids)},
-            "target_table_id": {"$in": list(table_ids)},
-            "created_by": str(current_user["_id"])
-        })
-        relationships = await rels_cursor.to_list(length=1000)
+        if request.joins and len(request.joins) > 0:
+            relationships = [j.model_dump() for j in request.joins]
+        else:
+            # Fetch relationships from DB as fallback
+            rels_cursor = db.relationships.find({
+                "is_active": True,
+                "source_table_id": {"$in": list(table_ids)},
+                "target_table_id": {"$in": list(table_ids)},
+                "created_by": str(current_user["_id"])
+            })
+            relationships = await rels_cursor.to_list(length=1000)
         
         pending_rels = relationships[:]
         

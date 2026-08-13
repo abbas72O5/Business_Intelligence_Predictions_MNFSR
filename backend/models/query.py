@@ -6,8 +6,16 @@ class QueryColumn(BaseModel):
     column: str
     alias: Optional[str] = None
 
+class JoinCondition(BaseModel):
+    source_table_id: str
+    target_table_id: str
+    source_column: str
+    target_column: str
+    join_type: str = "INNER"
+
 class QueryRequest(BaseModel):
     columns: List[QueryColumn]
+    joins: Optional[List[JoinCondition]] = []
 
 class GenerateRequest(QueryRequest):
     table_name: str

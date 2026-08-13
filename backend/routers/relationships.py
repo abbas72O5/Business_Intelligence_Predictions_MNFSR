@@ -14,6 +14,9 @@ async def create_relationship(relationship: Relationship, current_user = Depends
     if not relationship.relationship_id:
         relationship.relationship_id = str(uuid.uuid4())
         
+    # Override created_by with actual user ID
+    relationship.created_by = str(current_user["_id"])
+        
     rel_doc = relationship.model_dump()
     
     # Insert or update

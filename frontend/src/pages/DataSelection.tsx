@@ -356,12 +356,20 @@ function DataSelectionCanvas() {
     }));
 
     const joins = edges.filter(e => e.data?.isActive !== false).map(edge => {
-      // Joins will be built on the backend from Relationships, 
-      // but we return nothing here since QueryRequest just needs columns
-      return null;
+      const sourceNode = nodes.find(n => n.id === edge.source);
+      const targetNode = nodes.find(n => n.id === edge.target);
+      if (!sourceNode || !targetNode) return null;
+      
+      return {
+        source_table_id: sourceNode.data.table_id,
+        target_table_id: targetNode.data.table_id,
+        source_column: edge.sourceHandle?.replace('-source', ''),
+        target_column: edge.targetHandle?.replace('-target', ''),
+        join_type: edge.data?.joinType || 'INNER'
+      };
     }).filter(Boolean);
 
-    return { columns };
+    return { columns, joins };
   };
 
   const handlePreview = async () => {
