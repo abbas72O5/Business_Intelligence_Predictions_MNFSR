@@ -29,3 +29,15 @@ A comprehensive Business Intelligence and Analytics platform designed for minist
   - **Analytical Engine (DuckDB + Parquet):** Leverages DuckDB to dynamically execute SQL joins against highly efficient local Parquet datasets.
   - **Interactive Data Canvas:** Utilizes React Flow to allow users to visually drag-and-drop tables, draw persistent relationship lines (e.g., INNER/LEFT joins), and selectively cherry-pick columns.
   - **Automated Query Generation:** The backend seamlessly translates visual canvas relationships into raw SQL queries, generating new composite datasets instantly without exposing users to SQL complexity.
+
+- **Advanced Query Engine & Data Modeling:**
+  - **Logical Relationships:** Ability to save complex multi-table joins as reusable logical "Relationships", reducing storage redundancy and preserving modeling context.
+  - **Dynamic Subquery Execution:** The DuckDB engine seamlessly handles querying logical models, wrapping complex base join structures into subqueries for real-time dataset aggregations on the fly.
+  - **Robust Type Casting:** Implemented native `TRY_CAST` logic within DuckDB projections for seamless axis data-type casting (e.g., forcing strings to integers) without crashing the server on dirty or empty data.
+
+- **Multi-Chart Observation Dashboard:**
+  - **Dynamic Visual Grid:** Upgraded the legacy single-chart view into an unrestricted, multi-chart canvas allowing simultaneous side-by-side data visualization widgets.
+  - **Interactive Resizing:** Highly interactive UI where individual chart widgets can be dynamically resized by dragging their bottom-right handles to fit custom grid layouts.
+  - **Slide-out Properties Panel:** Professional BI experience with a resizable, contextual side-panel that slides out on the right to handle granular dataset, axis, and grouping configurations for the currently selected widget.
+  - **Premium Plotly Overhauls:** Completely native overriding of Plotly default styles to inject a modern horizontal ModeBar with clean white backgrounds and system-matching green icons.
+  - **Full Dashboard Export:** One-click layout export capabilities allowing users to snapshot their entire multi-chart canvas into high-resolution PNG, JPEG, or PDF formats using `html-to-image` and `jsPDF`.
