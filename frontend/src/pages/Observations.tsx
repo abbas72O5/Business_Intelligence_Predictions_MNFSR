@@ -36,6 +36,11 @@ export default function Observations() {
   const [chartType, setChartType] = useState(() => loadState('obs_chartType', 'bar'));
   const [xColumn, setXColumn] = useState(() => loadState('obs_xColumn', ''));
   const [yColumn, setYColumn] = useState(() => loadState('obs_yColumn', ''));
+  const [xAxisProps, setXAxisProps] = useState(() => loadState('obs_xAxisProps', { label: '', type: '' }));
+  const [yAxisProps, setYAxisProps] = useState(() => loadState('obs_yAxisProps', { label: '', type: '' }));
+  
+  const [showXProps, setShowXProps] = useState(false);
+  const [showYProps, setShowYProps] = useState(false);
   
   // Data Operations
   const [groupBy, setGroupBy] = useState(() => loadState('obs_groupBy', false));
@@ -52,10 +57,12 @@ export default function Observations() {
     localStorage.setItem('obs_chartType', JSON.stringify(chartType));
     localStorage.setItem('obs_xColumn', JSON.stringify(xColumn));
     localStorage.setItem('obs_yColumn', JSON.stringify(yColumn));
+    localStorage.setItem('obs_xAxisProps', JSON.stringify(xAxisProps));
+    localStorage.setItem('obs_yAxisProps', JSON.stringify(yAxisProps));
     localStorage.setItem('obs_groupBy', JSON.stringify(groupBy));
     localStorage.setItem('obs_aggregation', JSON.stringify(aggregation));
     localStorage.setItem('obs_chartData', JSON.stringify(chartData));
-  }, [selectedDataset, chartType, xColumn, yColumn, groupBy, aggregation, chartData]);
+  }, [selectedDataset, chartType, xColumn, yColumn, xAxisProps, yAxisProps, groupBy, aggregation, chartData]);
 
   useEffect(() => {
     fetchDatasets();
@@ -108,6 +115,8 @@ export default function Observations() {
         dataset_type: selectedDataset.type,
         x_column: xColumn,
         y_column: yColumn,
+        x_cast_type: xAxisProps.type || null,
+        y_cast_type: yAxisProps.type || null,
         group_by: groupBy,
         aggregation: groupBy ? aggregation : null
       }, {
@@ -141,15 +150,33 @@ export default function Observations() {
       data = [{ type: 'pie', labels: xValues, values: yValues }];
     }
 
+    const actualXLabel = xAxisProps.label || xColumn;
+    const actualYLabel = yAxisProps.label || yColumn;
+    
     return (
       <Plot
         data={data}
         layout={{ 
-          title: `${selectedDataset?.data?.filename || selectedDataset?.data?.name} - ${yColumn} by ${xColumn}`,
+          title: `${selectedDataset?.data?.filename || selectedDataset?.data?.name} - ${groupBy ? `${aggregation}(${actualYLabel})` : actualYLabel} by ${actualXLabel}`,
+          yaxis: {
+            title: groupBy ? `${aggregation}(${actualYLabel})` : actualYLabel,
+            ...(yAxisProps.type === 'Integer' ? { tickformat: 'd' } : {})
+          },
+          xaxis: {
+            title: actualXLabel,
+            ...(xAxisProps.type === 'Integer' ? { tickformat: 'd' } : {})
+          },
           autosize: true,
           margin: { l: 50, r: 50, b: 50, t: 50, pad: 4 },
           paper_bgcolor: 'transparent',
-          plot_bgcolor: 'transparent'
+          plot_bgcolor: 'transparent',
+          dragmode: 'pan' // default to pan mode instead of zoom box
+        }}
+        config={{
+          displayModeBar: true,
+          scrollZoom: true,
+          displaylogo: false,
+          modeBarButtonsToAdd: ['pan2d', 'zoom2d', 'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d']
         }}
         useResizeHandler={true}
         style={{ width: '100%', height: '100%', minHeight: '400px' }}
@@ -223,11 +250,16 @@ export default function Observations() {
 
                 {/* Axis Configuration */}
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">X-Axis (Category)</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-sm font-medium text-gray-700">X-Axis (Category)</label>
+                    <button onClick={() => setShowXProps(!showXProps)} className="text-gray-400 hover:text-green-600 focus:outline-none" title="Axis Properties">
+                      <Settings className="h-4 w-4" />
+                    </button>
+                  </div>
                   <select 
                     value={xColumn}
                     onChange={(e) => setXColumn(e.target.value)}
-                    className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500 mb-3"
+                    className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500 mb-2"
                   >
                     <option value="" disabled>Select column...</option>
                     {(selectedDataset.type === 'table' ? selectedDataset.data.columns : selectedDataset.data.columns_mapped).map((c: any) => (
@@ -235,17 +267,65 @@ export default function Observations() {
                     ))}
                   </select>
 
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Y-Axis (Value)</label>
+                  {showXProps && (
+                    <div className="bg-gray-50 border border-gray-200 rounded p-2 mb-3 grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <label className="block text-gray-600 mb-1">Display Label</label>
+                        <input type="text" value={xAxisProps.label} onChange={e => setXAxisProps({...xAxisProps, label: e.target.value})} className="w-full border border-gray-300 rounded px-2 py-1" placeholder="e.g. Department Name" />
+                      </div>
+                      <div>
+                        <label className="block text-gray-600 mb-1">Data Type Cast</label>
+                        <select value={xAxisProps.type} onChange={e => setXAxisProps({...xAxisProps, type: e.target.value})} className="w-full border border-gray-300 rounded px-2 py-1 bg-white">
+                          <option value="">(None)</option>
+                          <option value="String">String</option>
+                          <option value="Integer">Integer</option>
+                          <option value="Float">Float</option>
+                          <option value="Boolean">Boolean</option>
+                          <option value="Date">Date</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between mb-1 mt-3">
+                    <label className="block text-sm font-medium text-gray-700">Y-Axis (Value)</label>
+                    <button onClick={() => setShowYProps(!showYProps)} className="text-gray-400 hover:text-green-600 focus:outline-none" title="Axis Properties">
+                      <Settings className="h-4 w-4" />
+                    </button>
+                  </div>
                   <select 
                     value={yColumn}
                     onChange={(e) => setYColumn(e.target.value)}
-                    className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500"
+                    className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500 mb-2"
                   >
                     <option value="" disabled>Select column...</option>
-                    {(selectedDataset.type === 'table' ? selectedDataset.data.columns.filter((c: any) => c.type === 'Integer' || c.type === 'Float') : selectedDataset.data.columns_mapped).map((c: any) => (
+                    {(selectedDataset.type === 'table' 
+                        ? selectedDataset.data.columns.filter((c: any) => (groupBy && aggregation === 'COUNT') || c.type === 'Integer' || c.type === 'Float') 
+                        : (selectedDataset.data.columns_mapped || [])
+                     ).map((c: any) => (
                       <option key={c.name} value={c.name}>{c.name} {c.type !== 'Any' ? `(${c.type})` : ''}</option>
                     ))}
                   </select>
+                  
+                  {showYProps && (
+                    <div className="bg-gray-50 border border-gray-200 rounded p-2 mt-2 grid grid-cols-2 gap-2 text-xs">
+                      <div>
+                        <label className="block text-gray-600 mb-1">Display Label</label>
+                        <input type="text" value={yAxisProps.label} onChange={e => setYAxisProps({...yAxisProps, label: e.target.value})} className="w-full border border-gray-300 rounded px-2 py-1" placeholder="e.g. Total Revenue" />
+                      </div>
+                      <div>
+                        <label className="block text-gray-600 mb-1">Data Type Cast</label>
+                        <select value={yAxisProps.type} onChange={e => setYAxisProps({...yAxisProps, type: e.target.value})} className="w-full border border-gray-300 rounded px-2 py-1 bg-white">
+                          <option value="">(None)</option>
+                          <option value="String">String</option>
+                          <option value="Integer">Integer</option>
+                          <option value="Float">Float</option>
+                          <option value="Boolean">Boolean</option>
+                          <option value="Date">Date</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* Data Operations */}

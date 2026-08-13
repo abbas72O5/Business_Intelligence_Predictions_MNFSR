@@ -27,6 +27,8 @@ class ObservationQueryRequest(BaseModel):
     y_column: str
     group_by: bool = False
     aggregation: Optional[str] = None
+    x_cast_type: Optional[str] = None
+    y_cast_type: Optional[str] = None
 
 class SaveModelRequest(QueryRequest):
     model_name: str

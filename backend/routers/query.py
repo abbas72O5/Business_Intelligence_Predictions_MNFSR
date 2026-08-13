@@ -189,6 +189,36 @@ async def generate_observation(request: ObservationQueryRequest, current_user = 
         x_cast = f"\"{request.x_column}\""
         y_cast = f"\"{request.y_column}\""
         
+        def get_duckdb_type(t):
+            if t == "Integer": return "BIGINT"
+            if t == "Float": return "DOUBLE"
+            if t == "String": return "VARCHAR"
+            if t == "Boolean": return "BOOLEAN"
+            if t == "Date": return "TIMESTAMP"
+            return None
+            
+        x_duck = get_duckdb_type(request.x_cast_type) if request.x_cast_type else None
+        if x_duck:
+            if x_duck == "BIGINT":
+                x_cast = f"CAST(CAST({x_cast} AS DOUBLE) AS BIGINT)"
+            else:
+                x_cast = f"CAST({x_cast} AS {x_duck})"
+        
+        y_duck = get_duckdb_type(request.y_cast_type) if request.y_cast_type else None
+        if y_duck:
+            if y_duck == "BIGINT":
+                y_cast = f"CAST(CAST({y_cast} AS DOUBLE) AS BIGINT)"
+            else:
+                y_cast = f"CAST({y_cast} AS {y_duck})"
+                
+        where_clauses = []
+        if x_duck == "BIGINT":
+            where_clauses.append(f"TRY_CAST(\"{request.x_column}\" AS DOUBLE) = CAST(TRY_CAST(\"{request.x_column}\" AS DOUBLE) AS BIGINT)")
+        if y_duck == "BIGINT":
+            where_clauses.append(f"TRY_CAST(\"{request.y_column}\" AS DOUBLE) = CAST(TRY_CAST(\"{request.y_column}\" AS DOUBLE) AS BIGINT)")
+            
+        where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+        
         if request.dataset_type == "model":
             # Fetch the logical model
             model_doc = await db.saved_models.find_one({"model_id": request.table_id})
@@ -209,9 +239,9 @@ async def generate_observation(request: ObservationQueryRequest, current_user = 
                 agg_func = request.aggregation.upper()
                 if agg_func not in ["SUM", "AVG", "COUNT", "MIN", "MAX"]:
                     raise HTTPException(status_code=400, detail="Invalid aggregation function.")
-                sql = f"SELECT {x_cast}, {agg_func}({y_cast}) as \"{request.y_column}\" FROM ({base_sql}) GROUP BY {x_cast} ORDER BY {x_cast} ASC LIMIT 1000"
+                sql = f"SELECT {x_cast}, {agg_func}({y_cast}) as \"{request.y_column}\" FROM ({base_sql}) {where_sql} GROUP BY {x_cast} ORDER BY {x_cast} ASC LIMIT 1000"
             else:
-                sql = f"SELECT {x_cast}, {y_cast} FROM ({base_sql}) LIMIT 1000"
+                sql = f"SELECT {x_cast}, {y_cast} FROM ({base_sql}) {where_sql} LIMIT 1000"
                 
         else:
             # Physical table logic
@@ -226,9 +256,9 @@ async def generate_observation(request: ObservationQueryRequest, current_user = 
                 if agg_func not in ["SUM", "AVG", "COUNT", "MIN", "MAX"]:
                     raise HTTPException(status_code=400, detail="Invalid aggregation function.")
                     
-                sql = f"SELECT {x_cast}, {agg_func}({y_cast}) as \"{request.y_column}\" FROM '{storage_path}' GROUP BY {x_cast} ORDER BY {x_cast} ASC LIMIT 1000"
+                sql = f"SELECT {x_cast}, {agg_func}({y_cast}) as \"{request.y_column}\" FROM '{storage_path}' {where_sql} GROUP BY {x_cast} ORDER BY {x_cast} ASC LIMIT 1000"
             else:
-                sql = f"SELECT {x_cast}, {y_cast} FROM '{storage_path}' LIMIT 1000"
+                sql = f"SELECT {x_cast}, {y_cast} FROM '{storage_path}' {where_sql} LIMIT 1000"
             
         df = duckdb.query(sql).df()
         
