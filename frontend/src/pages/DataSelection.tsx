@@ -5,8 +5,7 @@ import ReactFlow, {
   useNodesState,
   useEdgesState,
   Controls,
-  Background,
-  MiniMap
+  Background
 } from 'reactflow';
 import type { Connection, Edge } from 'reactflow';
 import 'reactflow/dist/style.css';
@@ -36,7 +35,9 @@ function DataSelectionCanvas() {
   const [previewData, setPreviewData] = useState<any[] | null>(null);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
+  const [isSaveModelModalOpen, setIsSaveModelModalOpen] = useState(false);
   const [newTableName, setNewTableName] = useState('');
+  const [newModelName, setNewModelName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -437,6 +438,29 @@ function DataSelectionCanvas() {
     }
   };
 
+  const handleSaveModel = async () => {
+    if (!newModelName.trim()) {
+      setError('Please provide a model name.');
+      return;
+    }
+    setError('');
+    setLoading(true);
+    try {
+      const payload = { ...buildQueryPayload(), model_name: newModelName };
+      await axios.post('http://localhost:8000/query/saved_models', payload, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setIsSaveModelModalOpen(false);
+      setNewModelName('');
+      alert("Model saved successfully! You can now use it in Observations.");
+    } catch (err: any) {
+      const detail = err.response?.data?.detail;
+      setError(typeof detail === 'string' ? detail : JSON.stringify(detail) || 'Save Model failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const deleteFile = (e: React.MouseEvent, tableId: string) => {
     e.stopPropagation();
     setConfirmAction({
@@ -515,6 +539,14 @@ function DataSelectionCanvas() {
           >
             <PlayCircle className="h-5 w-5 mr-2" />
             Preview
+          </button>
+          <button
+            onClick={() => setIsSaveModelModalOpen(true)}
+            className="flex items-center bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-bold shadow-sm transition-colors disabled:opacity-50"
+            disabled={selectedColumns.size === 0}
+          >
+            <Database className="h-5 w-5 mr-2" />
+            Save Model
           </button>
           <button
             onClick={() => setIsGenerateModalOpen(true)}
@@ -706,6 +738,41 @@ function DataSelectionCanvas() {
                 <button onClick={() => setIsGenerateModalOpen(false)} className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md text-sm font-bold">Cancel</button>
                 <button onClick={handleGenerate} disabled={loading} className="px-4 py-2 text-white bg-green-600 hover:bg-green-700 rounded-md text-sm font-bold disabled:opacity-50">
                   {loading ? 'Generating...' : 'Generate & Save'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Save Model Modal */}
+      {isSaveModelModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md">
+            <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-gray-900">Save Relationship Model</h3>
+              <button onClick={() => setIsSaveModelModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            <div className="p-6">
+              {error && <div className="mb-4 bg-red-50 text-red-700 p-3 rounded border border-red-200 text-sm">{error}</div>}
+              <p className="text-sm text-gray-500 mb-4">
+                Saving as a logical model preserves your canvas configuration without generating a physical table.
+                You can directly visualize this model in the Observations tab.
+              </p>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Model Name</label>
+              <input
+                type="text"
+                value={newModelName}
+                onChange={e => setNewModelName(e.target.value)}
+                placeholder="e.g. Finance_View"
+                className="w-full border border-gray-300 rounded-md p-2 focus:ring-blue-500 focus:border-blue-500 mb-6"
+              />
+              <div className="flex justify-end space-x-3">
+                <button onClick={() => setIsSaveModelModalOpen(false)} className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md text-sm font-bold">Cancel</button>
+                <button onClick={handleSaveModel} disabled={loading} className="px-4 py-2 text-white bg-blue-600 hover:bg-blue-700 rounded-md text-sm font-bold disabled:opacity-50">
+                  {loading ? 'Saving...' : 'Save Model'}
                 </button>
               </div>
             </div>

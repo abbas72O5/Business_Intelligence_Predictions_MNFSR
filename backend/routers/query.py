@@ -5,7 +5,8 @@ import uuid
 from datetime import datetime
 
 from database import db
-from models.query import QueryRequest, GenerateRequest, ObservationQueryRequest
+from models.metadata import SavedModelMetadata
+from models.query import QueryRequest, GenerateRequest, ObservationQueryRequest, SaveModelRequest
 from routers.auth import get_current_user
 
 router = APIRouter(prefix="/query", tags=["query"])
@@ -185,29 +186,49 @@ async def generate_table(request: GenerateRequest, current_user = Depends(get_cu
 @router.post("/observations")
 async def generate_observation(request: ObservationQueryRequest, current_user = Depends(get_current_user)):
     try:
-        # Fetch file metadata to get storage path and types
-        file_doc = await db.table_metadata.find_one({"table_id": request.table_id})
-        if not file_doc:
-            raise HTTPException(status_code=404, detail="Table not found.")
-            
-        storage_path = file_doc["storage_path"]
-        
-        # Get types for casting if necessary (DuckDB often handles it, but good to be explicit for group by)
-        col_map = {c["name"]: c["type"] for c in file_doc.get("columns", [])}
-        
         x_cast = f"\"{request.x_column}\""
         y_cast = f"\"{request.y_column}\""
         
-        # We can cast if we want, but since they are drawn from the same parquet, they already have types.
-        # We'll just build the SQL directly.
-        if request.group_by and request.aggregation:
-            agg_func = request.aggregation.upper()
-            if agg_func not in ["SUM", "AVG", "COUNT", "MIN", "MAX"]:
-                raise HTTPException(status_code=400, detail="Invalid aggregation function.")
+        if request.dataset_type == "model":
+            # Fetch the logical model
+            model_doc = await db.saved_models.find_one({"model_id": request.table_id})
+            if not model_doc:
+                raise HTTPException(status_code=404, detail="Model not found.")
                 
-            sql = f"SELECT {x_cast}, {agg_func}({y_cast}) as \"{request.y_column}\" FROM '{storage_path}' GROUP BY {x_cast} ORDER BY {x_cast} ASC LIMIT 1000"
+            # Construct a base QueryRequest to reuse build_duckdb_query
+            # The columns and joins are stored as dicts, so we instantiate the models
+            from models.query import QueryColumn, JoinCondition
+            
+            q_cols = [QueryColumn(**c) for c in model_doc["columns"]]
+            q_joins = [JoinCondition(**j) for j in model_doc["joins"]]
+            
+            base_request = QueryRequest(columns=q_cols, joins=q_joins)
+            base_sql = await build_duckdb_query(base_request, current_user)
+            
+            if request.group_by and request.aggregation:
+                agg_func = request.aggregation.upper()
+                if agg_func not in ["SUM", "AVG", "COUNT", "MIN", "MAX"]:
+                    raise HTTPException(status_code=400, detail="Invalid aggregation function.")
+                sql = f"SELECT {x_cast}, {agg_func}({y_cast}) as \"{request.y_column}\" FROM ({base_sql}) GROUP BY {x_cast} ORDER BY {x_cast} ASC LIMIT 1000"
+            else:
+                sql = f"SELECT {x_cast}, {y_cast} FROM ({base_sql}) LIMIT 1000"
+                
         else:
-            sql = f"SELECT {x_cast}, {y_cast} FROM '{storage_path}' LIMIT 1000"
+            # Physical table logic
+            file_doc = await db.table_metadata.find_one({"table_id": request.table_id})
+            if not file_doc:
+                raise HTTPException(status_code=404, detail="Table not found.")
+                
+            storage_path = file_doc["storage_path"]
+            
+            if request.group_by and request.aggregation:
+                agg_func = request.aggregation.upper()
+                if agg_func not in ["SUM", "AVG", "COUNT", "MIN", "MAX"]:
+                    raise HTTPException(status_code=400, detail="Invalid aggregation function.")
+                    
+                sql = f"SELECT {x_cast}, {agg_func}({y_cast}) as \"{request.y_column}\" FROM '{storage_path}' GROUP BY {x_cast} ORDER BY {x_cast} ASC LIMIT 1000"
+            else:
+                sql = f"SELECT {x_cast}, {y_cast} FROM '{storage_path}' LIMIT 1000"
             
         df = duckdb.query(sql).df()
         
@@ -219,3 +240,30 @@ async def generate_observation(request: ObservationQueryRequest, current_user = 
         
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Observation query failed: {str(e)}")
+
+@router.post("/saved_models", response_model=SavedModelMetadata)
+async def save_model(request: SaveModelRequest, current_user = Depends(get_current_user)):
+    model_id = str(uuid.uuid4())
+    
+    # Store just the dict representation
+    model_doc = {
+        "model_id": model_id,
+        "name": request.model_name,
+        "columns": [c.model_dump() for c in request.columns],
+        "joins": [j.model_dump() for j in (request.joins or [])],
+        "created_at": datetime.utcnow(),
+        "created_by": str(current_user["_id"])
+    }
+    
+    result = await db.saved_models.insert_one(model_doc)
+    model_doc["_id"] = str(result.inserted_id)
+    model_doc["id"] = model_doc["_id"]
+    return model_doc
+
+@router.get("/saved_models", response_model=list[SavedModelMetadata])
+async def get_saved_models(current_user = Depends(get_current_user)):
+    cursor = db.saved_models.find({"created_by": str(current_user["_id"])})
+    models = await cursor.to_list(length=1000)
+    for m in models:
+        m["id"] = str(m["_id"])
+    return models

@@ -20,57 +20,92 @@ interface TableMetadata {
 export default function Observations() {
   const { token } = useAuth();
   const [tables, setTables] = useState<TableMetadata[]>([]);
-  const [selectedTable, setSelectedTable] = useState<TableMetadata | null>(null);
-  
-  // Chart Config
-  const [chartType, setChartType] = useState('bar');
-  const [xColumn, setXColumn] = useState('');
-  const [yColumn, setYColumn] = useState('');
-  
-  // Data Operations
-  const [groupBy, setGroupBy] = useState(false);
-  const [aggregation, setAggregation] = useState('SUM');
-  
-  // Data State
-  const [chartData, setChartData] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    fetchTables();
-  }, [token]);
-
-  const fetchTables = async () => {
+  const [models, setModels] = useState<any[]>([]);
+  const loadState = (key: string, defaultVal: any) => {
     try {
-      const res = await axios.get('http://localhost:8000/files/', {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setTables(res.data);
-    } catch (err) {
-      console.error("Failed to load tables", err);
+      const v = localStorage.getItem(key);
+      return v ? JSON.parse(v) : defaultVal;
+    } catch {
+      return defaultVal;
     }
   };
 
-  const handleTableSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const tableId = e.target.value;
-    const table = tables.find(t => t.table_id === tableId);
-    setSelectedTable(table || null);
+  const [selectedDataset, setSelectedDataset] = useState<{type: string, data: any} | null>(() => loadState('obs_dataset', null));
+  
+  // Chart Config
+  const [chartType, setChartType] = useState(() => loadState('obs_chartType', 'bar'));
+  const [xColumn, setXColumn] = useState(() => loadState('obs_xColumn', ''));
+  const [yColumn, setYColumn] = useState(() => loadState('obs_yColumn', ''));
+  
+  // Data Operations
+  const [groupBy, setGroupBy] = useState(() => loadState('obs_groupBy', false));
+  const [aggregation, setAggregation] = useState(() => loadState('obs_aggregation', 'SUM'));
+  
+  // Data State
+  const [chartData, setChartData] = useState<any[]>(() => loadState('obs_chartData', []));
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  // Persist State
+  useEffect(() => {
+    localStorage.setItem('obs_dataset', JSON.stringify(selectedDataset));
+    localStorage.setItem('obs_chartType', JSON.stringify(chartType));
+    localStorage.setItem('obs_xColumn', JSON.stringify(xColumn));
+    localStorage.setItem('obs_yColumn', JSON.stringify(yColumn));
+    localStorage.setItem('obs_groupBy', JSON.stringify(groupBy));
+    localStorage.setItem('obs_aggregation', JSON.stringify(aggregation));
+    localStorage.setItem('obs_chartData', JSON.stringify(chartData));
+  }, [selectedDataset, chartType, xColumn, yColumn, groupBy, aggregation, chartData]);
+
+  useEffect(() => {
+    fetchDatasets();
+  }, [token]);
+
+  const fetchDatasets = async () => {
+    try {
+      const [resTables, resModels] = await Promise.all([
+        axios.get('http://localhost:8000/files/', { headers: { Authorization: `Bearer ${token}` } }),
+        axios.get('http://localhost:8000/query/saved_models', { headers: { Authorization: `Bearer ${token}` } })
+      ]);
+      setTables(resTables.data);
+      setModels(resModels.data);
+    } catch (err) {
+      console.error("Failed to load datasets", err);
+    }
+  };
+
+  const handleDatasetSelect = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const val = e.target.value;
+    const [type, id] = val.split(':');
+    if (type === 'table') {
+      const table = tables.find(t => t.table_id === id);
+      setSelectedDataset(table ? { type: 'table', data: table } : null);
+    } else {
+      const model = models.find(m => m.model_id === id);
+      // Map columns array elements (which have 'column' and 'alias') to {name, type} for the UI
+      if (model) {
+        model.columns_mapped = model.columns.map((c: any) => ({ name: c.alias || c.column, type: 'Any' })); // Type is not fully known dynamically unless preserved, assume Any/Numeric works
+      }
+      setSelectedDataset(model ? { type: 'model', data: model } : null);
+    }
     setXColumn('');
     setYColumn('');
     setChartData([]);
   };
 
   const handleGenerateChart = async () => {
-    if (!selectedTable || !xColumn || !yColumn) {
-      setError("Please select a table, X-axis, and Y-axis.");
+    if (!selectedDataset || !xColumn || !yColumn) {
+      setError("Please select a dataset, X-axis, and Y-axis.");
       return;
     }
     
     setError('');
     setLoading(true);
     try {
+      const id = selectedDataset.type === 'table' ? selectedDataset.data.table_id : selectedDataset.data.model_id;
       const res = await axios.post('http://localhost:8000/query/observations', {
-        table_id: selectedTable.table_id,
+        table_id: id,
+        dataset_type: selectedDataset.type,
         x_column: xColumn,
         y_column: yColumn,
         group_by: groupBy,
@@ -110,7 +145,7 @@ export default function Observations() {
       <Plot
         data={data}
         layout={{ 
-          title: `${selectedTable?.filename} - ${yColumn} by ${xColumn}`,
+          title: `${selectedDataset?.data?.filename || selectedDataset?.data?.name} - ${yColumn} by ${xColumn}`,
           autosize: true,
           margin: { l: 50, r: 50, b: 50, t: 50, pad: 4 },
           paper_bgcolor: 'transparent',
@@ -144,17 +179,28 @@ export default function Observations() {
               </label>
               <select 
                 className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500"
-                onChange={handleTableSelect}
-                defaultValue=""
+                onChange={handleDatasetSelect}
+                value={selectedDataset ? `${selectedDataset.type}:${selectedDataset.data.table_id || selectedDataset.data.model_id}` : ""}
               >
                 <option value="" disabled>Select a dataset...</option>
-                {tables.map(t => (
-                  <option key={t.table_id} value={t.table_id}>{t.filename}</option>
-                ))}
+                {models.length > 0 && (
+                  <optgroup label="Saved Models (Logical)">
+                    {models.map(m => (
+                      <option key={`model:${m.model_id}`} value={`model:${m.model_id}`}>{m.name}</option>
+                    ))}
+                  </optgroup>
+                )}
+                {tables.length > 0 && (
+                  <optgroup label="Physical Tables">
+                    {tables.map(t => (
+                      <option key={`table:${t.table_id}`} value={`table:${t.table_id}`}>{t.filename}</option>
+                    ))}
+                  </optgroup>
+                )}
               </select>
             </div>
 
-            {selectedTable && (
+            {selectedDataset && (
               <>
                 {/* Chart Type */}
                 <div>
@@ -184,8 +230,8 @@ export default function Observations() {
                     className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500 mb-3"
                   >
                     <option value="" disabled>Select column...</option>
-                    {selectedTable.columns.map(c => (
-                      <option key={c.name} value={c.name}>{c.name} ({c.type})</option>
+                    {(selectedDataset.type === 'table' ? selectedDataset.data.columns : selectedDataset.data.columns_mapped).map((c: any) => (
+                      <option key={c.name} value={c.name}>{c.name} {c.type !== 'Any' ? `(${c.type})` : ''}</option>
                     ))}
                   </select>
 
@@ -196,8 +242,8 @@ export default function Observations() {
                     className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500"
                   >
                     <option value="" disabled>Select column...</option>
-                    {selectedTable.columns.filter(c => c.type === 'Integer' || c.type === 'Float').map(c => (
-                      <option key={c.name} value={c.name}>{c.name} ({c.type})</option>
+                    {(selectedDataset.type === 'table' ? selectedDataset.data.columns.filter((c: any) => c.type === 'Integer' || c.type === 'Float') : selectedDataset.data.columns_mapped).map((c: any) => (
+                      <option key={c.name} value={c.name}>{c.name} {c.type !== 'Any' ? `(${c.type})` : ''}</option>
                     ))}
                   </select>
                 </div>

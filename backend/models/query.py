@@ -22,7 +22,11 @@ class GenerateRequest(QueryRequest):
 
 class ObservationQueryRequest(BaseModel):
     table_id: str
+    dataset_type: str = "table" # "table" or "model"
     x_column: str
     y_column: str
     group_by: bool = False
     aggregation: Optional[str] = None
+
+class SaveModelRequest(QueryRequest):
+    model_name: str

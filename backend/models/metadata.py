@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List, Optional, Any
 from datetime import datetime
 
 class ColumnMetadata(BaseModel):
@@ -33,4 +33,13 @@ class Observation(BaseModel):
     name: str
     source_table_ids: List[str]
     chart_settings: dict
+    created_by: str
+
+class SavedModelMetadata(BaseModel):
+    id: str
+    model_id: str
+    name: str
+    columns: List[Any]  # Will store QueryColumn dicts
+    joins: List[Any]    # Will store JoinCondition dicts
+    created_at: datetime
     created_by: str
