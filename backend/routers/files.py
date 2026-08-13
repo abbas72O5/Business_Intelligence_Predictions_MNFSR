@@ -146,6 +146,22 @@ async def preview_file(table_id: str, current_user = Depends(get_current_user)):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error reading preview: {str(e)}")
 
+@router.put("/{table_id}/columns/{column_name}/type")
+async def update_column_type(table_id: str, column_name: str, payload: dict, current_user = Depends(get_current_user)):
+    new_type = payload.get("new_type")
+    if not new_type:
+        raise HTTPException(status_code=400, detail="new_type is required")
+        
+    result = await db.table_metadata.update_one(
+        {"table_id": table_id, "columns.name": column_name},
+        {"$set": {"columns.$.type": new_type}}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Table or column not found")
+        
+    return {"status": "success", "new_type": new_type}
+
 @router.delete("/{table_id}")
 async def delete_file(table_id: str, current_user = Depends(get_current_user)):
     file_record = await db.table_metadata.find_one({"table_id": table_id})

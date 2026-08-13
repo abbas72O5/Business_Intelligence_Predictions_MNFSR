@@ -19,3 +19,10 @@ class QueryRequest(BaseModel):
 
 class GenerateRequest(QueryRequest):
     table_name: str
+
+class ObservationQueryRequest(BaseModel):
+    table_id: str
+    x_column: str
+    y_column: str
+    group_by: bool = False
+    aggregation: Optional[str] = None

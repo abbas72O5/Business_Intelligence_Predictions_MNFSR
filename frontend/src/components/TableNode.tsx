@@ -37,9 +37,17 @@ export default function TableNode({ data, id }: NodeProps) {
                   {col.name}
                 </span>
               </div>
-              <span className="text-[10px] font-mono bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded border border-gray-200 group-hover:border-green-200 group-hover:bg-green-100 transition-colors">
-                {col.type}
-              </span>
+              <select 
+                value={col.type}
+                onChange={(e) => data.onChangeColumnType && data.onChangeColumnType(id, data.table_id, col.name, e.target.value)}
+                className="text-[10px] font-mono bg-gray-100 text-gray-500 px-1 py-0.5 rounded border border-transparent hover:border-gray-300 focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none appearance-none cursor-pointer"
+              >
+                <option value="String">String</option>
+                <option value="Integer">Integer</option>
+                <option value="Float">Float</option>
+                <option value="Boolean">Boolean</option>
+                <option value="Date">Date</option>
+              </select>
               
               {/* Optional handles for future joins */}
               <Handle 

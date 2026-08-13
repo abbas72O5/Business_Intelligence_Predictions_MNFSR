@@ -5,7 +5,7 @@ import uuid
 from datetime import datetime
 
 from database import db
-from models.query import QueryRequest, GenerateRequest
+from models.query import QueryRequest, GenerateRequest, ObservationQueryRequest
 from routers.auth import get_current_user
 
 router = APIRouter(prefix="/query", tags=["query"])
@@ -95,7 +95,26 @@ async def build_duckdb_query(request: QueryRequest, current_user: dict):
     select_parts = []
     for col in request.columns:
         alias = col.alias if col.alias else col.column
-        select_parts.append(f"\"{col.table_id}\".\"{col.column}\" AS \"{alias}\"")
+        
+        col_type = None
+        for c in file_map[col.table_id]["columns"]:
+            if c["name"] == col.column:
+                col_type = c["type"]
+                break
+                
+        cast_str = f"\"{col.table_id}\".\"{col.column}\""
+        if col_type == "Integer":
+            cast_str = f"CAST({cast_str} AS BIGINT)"
+        elif col_type == "Float":
+            cast_str = f"CAST({cast_str} AS DOUBLE)"
+        elif col_type == "Boolean":
+            cast_str = f"CAST({cast_str} AS BOOLEAN)"
+        elif col_type == "String":
+            cast_str = f"CAST({cast_str} AS VARCHAR)"
+        elif col_type == "Date":
+            cast_str = f"CAST({cast_str} AS TIMESTAMP)"
+            
+        select_parts.append(f"{cast_str} AS \"{alias}\"")
         
     select_clause = "SELECT " + ", ".join(select_parts)
     
@@ -162,3 +181,41 @@ async def generate_table(request: GenerateRequest, current_user = Depends(get_cu
         
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Generation failed: {str(e)}")
+
+@router.post("/observations")
+async def generate_observation(request: ObservationQueryRequest, current_user = Depends(get_current_user)):
+    try:
+        # Fetch file metadata to get storage path and types
+        file_doc = await db.table_metadata.find_one({"table_id": request.table_id})
+        if not file_doc:
+            raise HTTPException(status_code=404, detail="Table not found.")
+            
+        storage_path = file_doc["storage_path"]
+        
+        # Get types for casting if necessary (DuckDB often handles it, but good to be explicit for group by)
+        col_map = {c["name"]: c["type"] for c in file_doc.get("columns", [])}
+        
+        x_cast = f"\"{request.x_column}\""
+        y_cast = f"\"{request.y_column}\""
+        
+        # We can cast if we want, but since they are drawn from the same parquet, they already have types.
+        # We'll just build the SQL directly.
+        if request.group_by and request.aggregation:
+            agg_func = request.aggregation.upper()
+            if agg_func not in ["SUM", "AVG", "COUNT", "MIN", "MAX"]:
+                raise HTTPException(status_code=400, detail="Invalid aggregation function.")
+                
+            sql = f"SELECT {x_cast}, {agg_func}({y_cast}) as \"{request.y_column}\" FROM '{storage_path}' GROUP BY {x_cast} ORDER BY {x_cast} ASC LIMIT 1000"
+        else:
+            sql = f"SELECT {x_cast}, {y_cast} FROM '{storage_path}' LIMIT 1000"
+            
+        df = duckdb.query(sql).df()
+        
+        # Convert any date/time columns to string for JSON serialization
+        for col in df.select_dtypes(include=['datetime64', 'datetimetz']).columns:
+            df[col] = df[col].astype(str)
+            
+        return df.fillna("").to_dict(orient="records")
+        
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Observation query failed: {str(e)}")

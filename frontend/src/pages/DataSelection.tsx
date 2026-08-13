@@ -89,6 +89,25 @@ function DataSelectionCanvas() {
     });
   }, []);
 
+  const onChangeColumnType = useCallback(async (nodeId: string, tableId: string, colName: string, newType: string) => {
+    try {
+      await axios.put(`http://localhost:8000/files/${tableId}/columns/${colName}/type`, { new_type: newType }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setNodes(nds => nds.map(n => {
+        if (n.id === nodeId) {
+          const updatedColumns = n.data.columns.map((c: any) => 
+            c.name === colName ? { ...c, type: newType } : c
+          );
+          return { ...n, data: { ...n.data, columns: updatedColumns } };
+        }
+        return n;
+      }));
+    } catch (err) {
+      console.error("Failed to update column type", err);
+    }
+  }, [setNodes, token]);
+
   // Restore and Persist State
   useEffect(() => {
     try {
@@ -101,7 +120,9 @@ function DataSelectionCanvas() {
             table_id: n.data.table_id || n.data.file_id,
             selectedColumns: new Set(n.data.selectedColumnsArray || []),
             onToggleColumn: (nId: string, fId: string, col: string, typ: string, chk: boolean) =>
-              onToggleColumn(nId, fId, n.data.filename, col, typ, chk)
+              onToggleColumn(nId, fId, n.data.filename, col, typ, chk),
+            onChangeColumnType: (nId: string, tId: string, col: string, typ: string) =>
+              onChangeColumnType(nId, tId, col, typ)
           }
         }));
         setNodes(parsedNodes);
@@ -339,7 +360,9 @@ function DataSelectionCanvas() {
           columns: fileMeta.columns,
           selectedColumns: new Set(),
           onToggleColumn: (nId: string, fId: string, col: string, typ: string, chk: boolean) =>
-            onToggleColumn(nId, fId, fileMeta.filename, col, typ, chk)
+            onToggleColumn(nId, fId, fileMeta.filename, col, typ, chk),
+          onChangeColumnType: (nId: string, tId: string, col: string, typ: string) =>
+            onChangeColumnType(nId, tId, col, typ)
         },
       };
 
@@ -751,9 +774,19 @@ function DataSelectionCanvas() {
                 />
               </div>
 
-              <div className="flex justify-end space-x-3 pt-4">
-                <button onClick={() => setSelectedEdge(null)} className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md text-sm font-bold">Cancel</button>
+              <div className="flex justify-between items-center pt-4">
                 <button onClick={() => {
+                  setEdges(eds => eds.filter(e => e.id !== selectedEdge.id));
+                  setSelectedEdge(null);
+                  axios.delete(`http://localhost:8000/relationships/${selectedEdge.id}`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                  }).catch(console.error);
+                }} className="px-3 py-2 text-red-600 bg-red-50 hover:bg-red-100 rounded-md text-sm font-bold flex items-center">
+                  <Trash2 className="h-4 w-4 mr-2" /> Delete Relationship
+                </button>
+                <div className="space-x-3">
+                  <button onClick={() => setSelectedEdge(null)} className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md text-sm font-bold">Cancel</button>
+                  <button onClick={() => {
                   const jt = (document.getElementById('joinTypeSelect') as HTMLSelectElement).value;
                   const cd = (document.getElementById('cardinalitySelect') as HTMLSelectElement).value;
                   const act = (document.getElementById('activeToggle') as HTMLInputElement).checked;
@@ -761,6 +794,7 @@ function DataSelectionCanvas() {
                 }} className="px-4 py-2 text-white bg-green-600 hover:bg-green-700 rounded-md text-sm font-bold">
                   Save Settings
                 </button>
+                </div>
               </div>
             </div>
           </div>
