@@ -86,6 +86,12 @@ export default function Observations() {
   const [dashboardName, setDashboardName] = useState('');
   const [showLoadModal, setShowLoadModal] = useState(false);
   const [savedDashboards, setSavedDashboards] = useState<any[]>([]);
+  const [toast, setToast] = useState<{message: string, type: 'success' | 'error'} | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   const [loading, setLoading] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<Record<string, string>>({});
@@ -276,9 +282,10 @@ export default function Observations() {
       });
       setShowSaveModal(false);
       setDashboardName('');
+      showToast("Dashboard saved successfully!");
     } catch (err) {
       console.error(err);
-      alert("Failed to save dashboard.");
+      showToast("Failed to save dashboard.", "error");
     }
   };
 
@@ -291,7 +298,7 @@ export default function Observations() {
       setShowLoadModal(true);
     } catch (err) {
       console.error(err);
-      alert("Failed to fetch dashboards.");
+      showToast("Failed to fetch dashboards.", "error");
     }
   };
 
@@ -302,9 +309,10 @@ export default function Observations() {
       });
       setCharts(response.data.charts);
       setShowLoadModal(false);
+      showToast("Dashboard loaded successfully!");
     } catch (err) {
       console.error(err);
-      alert("Failed to load dashboard.");
+      showToast("Failed to load dashboard.", "error");
     }
   };
 
@@ -369,7 +377,15 @@ export default function Observations() {
   const configuringChart = charts.find(c => c.id === configuringChartId);
 
   return (
-    <div className="animate-in fade-in duration-500 h-full flex flex-col overflow-hidden bg-gray-50">
+    <div className="animate-in fade-in duration-500 h-full flex flex-col overflow-hidden bg-gray-50 relative">
+      
+      {/* Toast Notification */}
+      {toast && (
+        <div className={`absolute top-4 left-1/2 transform -translate-x-1/2 z-50 px-6 py-3 rounded-lg shadow-lg text-white font-medium animate-in slide-in-from-top-5 fade-in ${toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'}`}>
+          {toast.message}
+        </div>
+      )}
+
       <div className="flex items-center justify-between mb-4 px-2 pt-2">
         <h1 className="text-2xl font-bold text-gray-900">Visual Observations Dashboard</h1>
         <div className="flex space-x-3">
@@ -687,8 +703,8 @@ export default function Observations() {
 
       {/* Save Dashboard Modal */}
       {showSaveModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl w-96 p-6">
+        <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
+          <div className="bg-white rounded-lg shadow-2xl w-96 p-6 border border-gray-200 pointer-events-auto">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold text-gray-800">Save Dashboard</h2>
               <button onClick={() => setShowSaveModal(false)} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
@@ -712,8 +728,8 @@ export default function Observations() {
 
       {/* Load Dashboard Modal */}
       {showLoadModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl w-[500px] p-6 max-h-[80vh] flex flex-col">
+        <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
+          <div className="bg-white rounded-lg shadow-2xl w-[500px] p-6 max-h-[80vh] flex flex-col border border-gray-200 pointer-events-auto">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold text-gray-800 flex items-center"><FolderOpen className="h-5 w-5 mr-2 text-blue-500"/> Load Dashboard</h2>
               <button onClick={() => setShowLoadModal(false)} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>

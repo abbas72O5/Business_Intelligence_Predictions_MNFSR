@@ -27,9 +27,7 @@ async def save_dashboard(payload: Dict[str, Any], current_user = Depends(get_cur
         "created_by": str(current_user["_id"])
     }
     
-    await db.dashboards.insert_one(doc.copy())
-    
-    doc["_id"] = str(doc["_id"])
+    await db.dashboards.insert_one(doc)
     return DashboardMetadata(**doc)
 
 @router.get("/", response_model=List[DashboardMetadata])
