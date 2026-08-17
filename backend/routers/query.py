@@ -186,79 +186,95 @@ async def generate_table(request: GenerateRequest, current_user = Depends(get_cu
 @router.post("/observations")
 async def generate_observation(request: ObservationQueryRequest, current_user = Depends(get_current_user)):
     try:
-        x_cast = f"\"{request.x_column}\""
-        y_cast = f"\"{request.y_column}\""
-        
-        def get_duckdb_type(t):
-            if t == "Integer": return "BIGINT"
-            if t == "Float": return "DOUBLE"
-            if t == "String": return "VARCHAR"
-            if t == "Boolean": return "BOOLEAN"
-            if t == "Date": return "TIMESTAMP"
-            return None
-            
-        x_duck = get_duckdb_type(request.x_cast_type) if request.x_cast_type else None
-        if x_duck:
-            if x_duck == "BIGINT":
-                x_cast = f"TRY_CAST(TRY_CAST({x_cast} AS DOUBLE) AS BIGINT)"
+        if request.table_columns:
+            cols_sql = ", ".join([f"\"{c}\"" for c in request.table_columns])
+            if request.dataset_type == "model":
+                model_doc = await db.saved_models.find_one({"model_id": request.table_id})
+                if not model_doc:
+                    raise HTTPException(status_code=404, detail="Model not found.")
+                from models.query import QueryColumn, JoinCondition
+                q_cols = [QueryColumn(**c) for c in model_doc["columns"]]
+                q_joins = [JoinCondition(**j) for j in model_doc["joins"]]
+                base_request = QueryRequest(columns=q_cols, joins=q_joins)
+                base_sql = await build_duckdb_query(base_request, current_user)
+                sql = f"SELECT {cols_sql} FROM ({base_sql}) LIMIT 1000"
             else:
-                x_cast = f"TRY_CAST({x_cast} AS {x_duck})"
-        
-        y_duck = get_duckdb_type(request.y_cast_type) if request.y_cast_type else None
-        if y_duck:
-            if y_duck == "BIGINT":
-                y_cast = f"TRY_CAST(TRY_CAST({y_cast} AS DOUBLE) AS BIGINT)"
-            else:
-                y_cast = f"TRY_CAST({y_cast} AS {y_duck})"
-                
-        where_clauses = []
-        if x_duck == "BIGINT":
-            where_clauses.append(f"TRY_CAST(\"{request.x_column}\" AS DOUBLE) = CAST(TRY_CAST(\"{request.x_column}\" AS DOUBLE) AS BIGINT)")
-        if y_duck == "BIGINT":
-            where_clauses.append(f"TRY_CAST(\"{request.y_column}\" AS DOUBLE) = CAST(TRY_CAST(\"{request.y_column}\" AS DOUBLE) AS BIGINT)")
-            
-        where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
-        
-        if request.dataset_type == "model":
-            # Fetch the logical model
-            model_doc = await db.saved_models.find_one({"model_id": request.table_id})
-            if not model_doc:
-                raise HTTPException(status_code=404, detail="Model not found.")
-                
-            # Construct a base QueryRequest to reuse build_duckdb_query
-            # The columns and joins are stored as dicts, so we instantiate the models
-            from models.query import QueryColumn, JoinCondition
-            
-            q_cols = [QueryColumn(**c) for c in model_doc["columns"]]
-            q_joins = [JoinCondition(**j) for j in model_doc["joins"]]
-            
-            base_request = QueryRequest(columns=q_cols, joins=q_joins)
-            base_sql = await build_duckdb_query(base_request, current_user)
-            
-            if request.group_by and request.aggregation:
-                agg_func = request.aggregation.upper()
-                if agg_func not in ["SUM", "AVG", "COUNT", "MIN", "MAX"]:
-                    raise HTTPException(status_code=400, detail="Invalid aggregation function.")
-                sql = f"SELECT {x_cast} as \"{request.x_column}\", {agg_func}({y_cast}) as \"{request.y_column}\" FROM ({base_sql}) {where_sql} GROUP BY {x_cast} ORDER BY {x_cast} ASC LIMIT 1000"
-            else:
-                sql = f"SELECT {x_cast} as \"{request.x_column}\", {y_cast} as \"{request.y_column}\" FROM ({base_sql}) {where_sql} LIMIT 1000"
-                
+                file_doc = await db.table_metadata.find_one({"table_id": request.table_id})
+                if not file_doc:
+                    raise HTTPException(status_code=404, detail="Table not found.")
+                storage_path = file_doc["storage_path"]
+                sql = f"SELECT {cols_sql} FROM '{storage_path}' LIMIT 1000"
         else:
-            # Physical table logic
-            file_doc = await db.table_metadata.find_one({"table_id": request.table_id})
-            if not file_doc:
-                raise HTTPException(status_code=404, detail="Table not found.")
-                
-            storage_path = file_doc["storage_path"]
+            if not request.x_column or not request.y_column:
+                raise HTTPException(status_code=400, detail="x_column and y_column are required for this chart type.")
             
-            if request.group_by and request.aggregation:
-                agg_func = request.aggregation.upper()
-                if agg_func not in ["SUM", "AVG", "COUNT", "MIN", "MAX"]:
-                    raise HTTPException(status_code=400, detail="Invalid aggregation function.")
+            x_cast = f"\"{request.x_column}\""
+            y_cast = f"\"{request.y_column}\""
+            
+            def get_duckdb_type(t):
+                if t == "Integer": return "BIGINT"
+                if t == "Float": return "DOUBLE"
+                if t == "String": return "VARCHAR"
+                if t == "Boolean": return "BOOLEAN"
+                if t == "Date": return "TIMESTAMP"
+                return None
+                
+            x_duck = get_duckdb_type(request.x_cast_type) if request.x_cast_type else None
+            if x_duck:
+                if x_duck == "BIGINT":
+                    x_cast = f"TRY_CAST(TRY_CAST({x_cast} AS DOUBLE) AS BIGINT)"
+                else:
+                    x_cast = f"TRY_CAST({x_cast} AS {x_duck})"
+            
+            y_duck = get_duckdb_type(request.y_cast_type) if request.y_cast_type else None
+            if y_duck:
+                if y_duck == "BIGINT":
+                    y_cast = f"TRY_CAST(TRY_CAST({y_cast} AS DOUBLE) AS BIGINT)"
+                else:
+                    y_cast = f"TRY_CAST({y_cast} AS {y_duck})"
                     
-                sql = f"SELECT {x_cast} as \"{request.x_column}\", {agg_func}({y_cast}) as \"{request.y_column}\" FROM '{storage_path}' {where_sql} GROUP BY {x_cast} ORDER BY {x_cast} ASC LIMIT 1000"
+            where_clauses = []
+            if x_duck == "BIGINT":
+                where_clauses.append(f"TRY_CAST(\"{request.x_column}\" AS DOUBLE) = CAST(TRY_CAST(\"{request.x_column}\" AS DOUBLE) AS BIGINT)")
+            if y_duck == "BIGINT":
+                where_clauses.append(f"TRY_CAST(\"{request.y_column}\" AS DOUBLE) = CAST(TRY_CAST(\"{request.y_column}\" AS DOUBLE) AS BIGINT)")
+                
+            where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+            
+            if request.dataset_type == "model":
+                model_doc = await db.saved_models.find_one({"model_id": request.table_id})
+                if not model_doc:
+                    raise HTTPException(status_code=404, detail="Model not found.")
+                    
+                from models.query import QueryColumn, JoinCondition
+                q_cols = [QueryColumn(**c) for c in model_doc["columns"]]
+                q_joins = [JoinCondition(**j) for j in model_doc["joins"]]
+                base_request = QueryRequest(columns=q_cols, joins=q_joins)
+                base_sql = await build_duckdb_query(base_request, current_user)
+                
+                if request.group_by and request.aggregation:
+                    agg_func = request.aggregation.upper()
+                    if agg_func not in ["SUM", "AVG", "COUNT", "MIN", "MAX"]:
+                        raise HTTPException(status_code=400, detail="Invalid aggregation function.")
+                    sql = f"SELECT {x_cast} as \"{request.x_column}\", {agg_func}({y_cast}) as \"{request.y_column}\" FROM ({base_sql}) {where_sql} GROUP BY {x_cast} ORDER BY {x_cast} ASC LIMIT 1000"
+                else:
+                    sql = f"SELECT {x_cast} as \"{request.x_column}\", {y_cast} as \"{request.y_column}\" FROM ({base_sql}) {where_sql} LIMIT 1000"
+                    
             else:
-                sql = f"SELECT {x_cast} as \"{request.x_column}\", {y_cast} as \"{request.y_column}\" FROM '{storage_path}' {where_sql} LIMIT 1000"
+                file_doc = await db.table_metadata.find_one({"table_id": request.table_id})
+                if not file_doc:
+                    raise HTTPException(status_code=404, detail="Table not found.")
+                    
+                storage_path = file_doc["storage_path"]
+                
+                if request.group_by and request.aggregation:
+                    agg_func = request.aggregation.upper()
+                    if agg_func not in ["SUM", "AVG", "COUNT", "MIN", "MAX"]:
+                        raise HTTPException(status_code=400, detail="Invalid aggregation function.")
+                        
+                    sql = f"SELECT {x_cast} as \"{request.x_column}\", {agg_func}({y_cast}) as \"{request.y_column}\" FROM '{storage_path}' {where_sql} GROUP BY {x_cast} ORDER BY {x_cast} ASC LIMIT 1000"
+                else:
+                    sql = f"SELECT {x_cast} as \"{request.x_column}\", {y_cast} as \"{request.y_column}\" FROM '{storage_path}' {where_sql} LIMIT 1000"
             
         df = duckdb.query(sql).df()
         

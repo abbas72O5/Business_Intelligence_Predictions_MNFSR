@@ -23,8 +23,9 @@ class GenerateRequest(QueryRequest):
 class ObservationQueryRequest(BaseModel):
     table_id: str
     dataset_type: str = "table" # "table" or "model"
-    x_column: str
-    y_column: str
+    x_column: Optional[str] = None
+    y_column: Optional[str] = None
+    table_columns: Optional[List[str]] = None
     group_by: bool = False
     aggregation: Optional[str] = None
     x_cast_type: Optional[str] = None
