@@ -43,3 +43,10 @@ class SavedModelMetadata(BaseModel):
     joins: List[Any]    # Will store JoinCondition dicts
     created_at: datetime
     created_by: str
+
+class DashboardMetadata(BaseModel):
+    dashboard_id: str
+    name: str
+    charts: List[Any]  # Will store ChartConfig objects as dicts
+    created_at: datetime
+    created_by: str

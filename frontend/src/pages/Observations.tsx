@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import Plot from 'react-plotly.js';
 import { toPng, toJpeg } from 'html-to-image';
 import { jsPDF } from 'jspdf';
-import { LineChart, BarChart2, PieChart, ScatterChart, Settings, Database, Filter, PlusCircle, X, Trash2, Download, ChevronDown, Image as ImageIcon, FileText } from 'lucide-react';
+import { LineChart, BarChart2, PieChart, ScatterChart, Settings, Database, Filter, PlusCircle, X, Trash2, Download, ChevronDown, Image as ImageIcon, FileText, Save, FolderOpen } from 'lucide-react';
 
 interface ColumnMetadata {
   name: string;
@@ -38,7 +38,7 @@ export default function Observations() {
   const { token } = useAuth();
   const [tables, setTables] = useState<TableMetadata[]>([]);
   const [models, setModels] = useState<any[]>([]);
-  
+
   const loadState = (key: string, defaultVal: any) => {
     try {
       const v = localStorage.getItem(key);
@@ -51,7 +51,7 @@ export default function Observations() {
   const [charts, setCharts] = useState<ChartConfig[]>(() => {
     const saved = loadState('obs_charts', null);
     if (saved && Array.isArray(saved) && saved.length > 0) return saved;
-    
+
     // Legacy migration
     const legacyDataset = loadState('obs_dataset', null);
     if (legacyDataset) {
@@ -74,7 +74,7 @@ export default function Observations() {
   const [configuringChartId, setConfiguringChartId] = useState<string | null>(null);
   const [panelWidth, setPanelWidth] = useState(350);
   const [isResizing, setIsResizing] = useState(false);
-  
+
   // Individual Chart Resizing State
   const [resizingChartId, setResizingChartId] = useState<string | null>(null);
   const [startSize, setStartSize] = useState({ w: 0, h: 0, x: 0, y: 0 });
@@ -82,6 +82,11 @@ export default function Observations() {
   const [showXProps, setShowXProps] = useState(false);
   const [showYProps, setShowYProps] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [dashboardName, setDashboardName] = useState('');
+  const [showLoadModal, setShowLoadModal] = useState(false);
+  const [savedDashboards, setSavedDashboards] = useState<any[]>([]);
+
   const [loading, setLoading] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<Record<string, string>>({});
 
@@ -99,7 +104,7 @@ export default function Observations() {
       }
     };
     const handleMouseUp = () => setIsResizing(false);
-    
+
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
     return () => {
@@ -122,7 +127,7 @@ export default function Observations() {
       window.dispatchEvent(new Event('resize')); // helps plotly auto-resize
     };
     const handleMouseUp = () => setResizingChartId(null);
-    
+
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseup', handleMouseUp);
     return () => {
@@ -180,7 +185,7 @@ export default function Observations() {
     const val = e.target.value;
     const [type, item_id] = val.split(':');
     let newDataset = null;
-    
+
     if (type === 'table') {
       const table = tables.find(t => t.table_id === item_id);
       newDataset = table ? { type: 'table', data: table } : null;
@@ -199,10 +204,10 @@ export default function Observations() {
       setError({ ...error, [chart.id]: "Please select a dataset, X-axis, and Y-axis." });
       return;
     }
-    
+
     setError({ ...error, [chart.id]: '' });
     setLoading({ ...loading, [chart.id]: true });
-    
+
     try {
       const dataId = chart.selectedDataset.type === 'table' ? chart.selectedDataset.data.table_id : chart.selectedDataset.data.model_id;
       const res = await axios.post('http://localhost:8000/query/observations', {
@@ -217,7 +222,7 @@ export default function Observations() {
       }, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
+
       updateChart(chart.id, { chartData: res.data });
       setConfiguringChartId(null);
     } catch (err: any) {
@@ -232,7 +237,7 @@ export default function Observations() {
     setShowExportMenu(false);
     const dashboardEl = document.getElementById('dashboard-canvas');
     if (!dashboardEl) return;
-    
+
     try {
       const options = {
         backgroundColor: '#f9fafb', // matching tailwind bg-gray-50
@@ -260,9 +265,52 @@ export default function Observations() {
     }
   };
 
+  const saveDashboard = async () => {
+    if (!dashboardName) return;
+    try {
+      await axios.post('http://localhost:8000/dashboards/', {
+        name: dashboardName,
+        charts: charts
+      }, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      setShowSaveModal(false);
+      setDashboardName('');
+    } catch (err) {
+      console.error(err);
+      alert("Failed to save dashboard.");
+    }
+  };
+
+  const openLoadModal = async () => {
+    try {
+      const response = await axios.get('http://localhost:8000/dashboards/', {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      setSavedDashboards(response.data);
+      setShowLoadModal(true);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to fetch dashboards.");
+    }
+  };
+
+  const loadDashboard = async (id: string) => {
+    try {
+      const response = await axios.get(`http://localhost:8000/dashboards/${id}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      setCharts(response.data.charts);
+      setShowLoadModal(false);
+    } catch (err) {
+      console.error(err);
+      alert("Failed to load dashboard.");
+    }
+  };
+
   const renderPlot = (chart: ChartConfig) => {
     if (chart.chartData.length === 0) return null;
-    
+
     const xValues = chart.chartData.map(d => d[chart.xColumn]);
     const yValues = chart.chartData.map(d => d[chart.yColumn]);
 
@@ -280,11 +328,11 @@ export default function Observations() {
 
     const actualXLabel = chart.xAxisProps.label || chart.xColumn;
     const actualYLabel = chart.yAxisProps.label || chart.yColumn;
-    
+
     return (
       <Plot
         data={data}
-        layout={{ 
+        layout={{
           title: `${chart.selectedDataset?.data?.filename || chart.selectedDataset?.data?.name} - ${chart.groupBy ? `${chart.aggregation}(${actualYLabel})` : actualYLabel} by ${actualXLabel}`,
           yaxis: {
             title: chart.groupBy ? `${chart.aggregation}(${actualYLabel})` : actualYLabel,
@@ -325,16 +373,26 @@ export default function Observations() {
       <div className="flex items-center justify-between mb-4 px-2 pt-2">
         <h1 className="text-2xl font-bold text-gray-900">Visual Observations Dashboard</h1>
         <div className="flex space-x-3">
-          
+
+          {/* Load Dashboard */}
+          <button onClick={openLoadModal} className="flex items-center bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-md font-medium transition-colors">
+            <FolderOpen className="h-5 w-5 mr-2 text-blue-500" /> Load
+          </button>
+
+          {/* Save Dashboard */}
+          <button onClick={() => setShowSaveModal(true)} className="flex items-center bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-md font-medium transition-colors">
+            <Save className="h-5 w-5 mr-2 text-green-500" /> Save
+          </button>
+
           {/* Export Dropdown */}
           <div className="relative">
-            <button 
-              onClick={() => setShowExportMenu(!showExportMenu)} 
+            <button
+              onClick={() => setShowExportMenu(!showExportMenu)}
               className="flex items-center bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-md font-medium transition-colors"
             >
               <Download className="h-5 w-5 mr-2 text-gray-500" /> Export <ChevronDown className="h-4 w-4 ml-1 text-gray-400" />
             </button>
-            
+
             {showExportMenu && (
               <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-gray-200 z-50 py-1 animate-in fade-in zoom-in-95">
                 <button onClick={() => handleExportDashboard('png')} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center">
@@ -366,8 +424,8 @@ export default function Observations() {
           ) : (
             <div className="flex flex-wrap gap-6 items-start pb-8">
               {charts.map(chart => (
-                <div 
-                  key={chart.id} 
+                <div
+                  key={chart.id}
                   style={{ width: chart.width || 500, height: chart.height || 450 }}
                   className={`bg-white rounded-lg shadow-sm border ${configuringChartId === chart.id ? 'border-green-500 ring-2 ring-green-200' : 'border-gray-200'} flex flex-col relative group cursor-pointer transition-shadow`}
                   onClick={() => setConfiguringChartId(chart.id)}
@@ -382,7 +440,7 @@ export default function Observations() {
                       <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
-                  
+
                   {/* Chart Area */}
                   <div className="flex-1 w-full h-full relative p-2 pt-8">
                     {chart.chartData.length === 0 ? (
@@ -395,9 +453,9 @@ export default function Observations() {
                       renderPlot(chart)
                     )}
                   </div>
-                  
+
                   {/* Resize Handle */}
-                  <div 
+                  <div
                     className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize z-20 opacity-0 group-hover:opacity-100"
                     onMouseDown={(e) => {
                       e.stopPropagation();
@@ -407,7 +465,7 @@ export default function Observations() {
                     }}
                   >
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-full h-full text-gray-400">
-                      <path d="M15 21v-6h6M21 21l-7-7" strokeLinecap="round" strokeLinejoin="round"/>
+                      <path d="M15 21v-6h6M21 21l-7-7" strokeLinecap="round" strokeLinejoin="round" />
                     </svg>
                   </div>
                 </div>
@@ -418,7 +476,7 @@ export default function Observations() {
 
         {/* Resizer Handle */}
         {configuringChart && (
-          <div 
+          <div
             className="w-1.5 bg-gray-200 hover:bg-green-500 cursor-col-resize transition-colors flex items-center justify-center group"
             onMouseDown={(e) => {
               e.preventDefault();
@@ -431,7 +489,7 @@ export default function Observations() {
 
         {/* Properties Panel (Right Sidebar) */}
         {configuringChart && (
-          <div 
+          <div
             style={{ width: `${panelWidth}px` }}
             className="bg-white border-l border-gray-200 flex flex-col h-full shadow-lg shrink-0"
           >
@@ -439,16 +497,16 @@ export default function Observations() {
               <div className="flex items-center text-gray-800 font-bold">
                 <Settings className="h-5 w-5 mr-2 text-gray-500" /> Properties
               </div>
-              <button onClick={() => setConfiguringChartId(null)} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5"/></button>
+              <button onClick={() => setConfiguringChartId(null)} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
             </div>
-            
+
             <div className="flex-1 overflow-y-auto p-4 space-y-5">
               {/* Dataset Selection */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1 flex items-center">
                   <Database className="h-4 w-4 mr-1" /> Dataset
                 </label>
-                <select 
+                <select
                   className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500"
                   onChange={(e) => handleDatasetSelect(configuringChart.id, e)}
                   value={configuringChart.selectedDataset ? `${configuringChart.selectedDataset.type}:${configuringChart.selectedDataset.data.table_id || configuringChart.selectedDataset.data.model_id}` : ""}
@@ -500,7 +558,7 @@ export default function Observations() {
                         <Settings className="h-4 w-4" />
                       </button>
                     </div>
-                    <select 
+                    <select
                       value={configuringChart.xColumn}
                       onChange={(e) => updateChart(configuringChart.id, { xColumn: e.target.value })}
                       className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500 mb-2"
@@ -515,11 +573,11 @@ export default function Observations() {
                       <div className="bg-gray-50 border border-gray-200 rounded p-2 mb-3 grid grid-cols-2 gap-2 text-xs">
                         <div>
                           <label className="block text-gray-600 mb-1">Display Label</label>
-                          <input type="text" value={configuringChart.xAxisProps.label} onChange={e => updateChart(configuringChart.id, { xAxisProps: { ...configuringChart.xAxisProps, label: e.target.value }})} className="w-full border border-gray-300 rounded px-2 py-1" placeholder="e.g. Dept" />
+                          <input type="text" value={configuringChart.xAxisProps.label} onChange={e => updateChart(configuringChart.id, { xAxisProps: { ...configuringChart.xAxisProps, label: e.target.value } })} className="w-full border border-gray-300 rounded px-2 py-1" placeholder="e.g. Dept" />
                         </div>
                         <div>
                           <label className="block text-gray-600 mb-1">Data Type Cast</label>
-                          <select value={configuringChart.xAxisProps.type} onChange={e => updateChart(configuringChart.id, { xAxisProps: { ...configuringChart.xAxisProps, type: e.target.value }})} className="w-full border border-gray-300 rounded px-2 py-1 bg-white">
+                          <select value={configuringChart.xAxisProps.type} onChange={e => updateChart(configuringChart.id, { xAxisProps: { ...configuringChart.xAxisProps, type: e.target.value } })} className="w-full border border-gray-300 rounded px-2 py-1 bg-white">
                             <option value="">(None)</option>
                             <option value="String">String</option>
                             <option value="Integer">Integer</option>
@@ -537,29 +595,29 @@ export default function Observations() {
                         <Settings className="h-4 w-4" />
                       </button>
                     </div>
-                    <select 
+                    <select
                       value={configuringChart.yColumn}
                       onChange={(e) => updateChart(configuringChart.id, { yColumn: e.target.value })}
                       className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500 mb-2"
                     >
                       <option value="" disabled>Select column...</option>
-                      {(configuringChart.selectedDataset.type === 'table' 
-                          ? configuringChart.selectedDataset.data.columns.filter((c: any) => (configuringChart.groupBy && configuringChart.aggregation === 'COUNT') || c.type === 'Integer' || c.type === 'Float') 
-                          : (configuringChart.selectedDataset.data.columns_mapped || [])
-                       ).map((c: any) => (
+                      {(configuringChart.selectedDataset.type === 'table'
+                        ? configuringChart.selectedDataset.data.columns.filter((c: any) => (configuringChart.groupBy && configuringChart.aggregation === 'COUNT') || c.type === 'Integer' || c.type === 'Float')
+                        : (configuringChart.selectedDataset.data.columns_mapped || [])
+                      ).map((c: any) => (
                         <option key={c.name} value={c.name}>{c.name} {c.type !== 'Any' ? `(${c.type})` : ''}</option>
                       ))}
                     </select>
-                    
+
                     {showYProps && (
                       <div className="bg-gray-50 border border-gray-200 rounded p-2 mt-2 grid grid-cols-2 gap-2 text-xs">
                         <div>
                           <label className="block text-gray-600 mb-1">Display Label</label>
-                          <input type="text" value={configuringChart.yAxisProps.label} onChange={e => updateChart(configuringChart.id, { yAxisProps: { ...configuringChart.yAxisProps, label: e.target.value }})} className="w-full border border-gray-300 rounded px-2 py-1" placeholder="e.g. Value" />
+                          <input type="text" value={configuringChart.yAxisProps.label} onChange={e => updateChart(configuringChart.id, { yAxisProps: { ...configuringChart.yAxisProps, label: e.target.value } })} className="w-full border border-gray-300 rounded px-2 py-1" placeholder="e.g. Value" />
                         </div>
                         <div>
                           <label className="block text-gray-600 mb-1">Data Type Cast</label>
-                          <select value={configuringChart.yAxisProps.type} onChange={e => updateChart(configuringChart.id, { yAxisProps: { ...configuringChart.yAxisProps, type: e.target.value }})} className="w-full border border-gray-300 rounded px-2 py-1 bg-white">
+                          <select value={configuringChart.yAxisProps.type} onChange={e => updateChart(configuringChart.id, { yAxisProps: { ...configuringChart.yAxisProps, type: e.target.value } })} className="w-full border border-gray-300 rounded px-2 py-1 bg-white">
                             <option value="">(None)</option>
                             <option value="String">String</option>
                             <option value="Integer">Integer</option>
@@ -585,11 +643,11 @@ export default function Observations() {
                         className="h-4 w-4 text-green-600 rounded focus:ring-green-500 cursor-pointer"
                       />
                     </div>
-                    
+
                     {configuringChart.groupBy && (
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-1">Aggregation Function</label>
-                        <select 
+                        <select
                           value={configuringChart.aggregation}
                           onChange={(e) => updateChart(configuringChart.id, { aggregation: e.target.value })}
                           className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500"
@@ -613,9 +671,9 @@ export default function Observations() {
                 </>
               )}
             </div>
-            
+
             <div className="p-4 border-t border-gray-200 bg-gray-50">
-              <button 
+              <button
                 onClick={() => handleGenerateChart(configuringChart)}
                 disabled={loading[configuringChart.id] || !configuringChart.selectedDataset}
                 className="w-full bg-green-600 text-white py-2 rounded-md font-bold hover:bg-green-700 transition-colors disabled:opacity-50"
@@ -626,6 +684,63 @@ export default function Observations() {
           </div>
         )}
       </div>
+
+      {/* Save Dashboard Modal */}
+      {showSaveModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-96 p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-800">Save Dashboard</h2>
+              <button onClick={() => setShowSaveModal(false)} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
+            </div>
+            <p className="text-gray-600 text-sm mb-4">Save your current dashboard layout to access it later.</p>
+            <input 
+              type="text" 
+              placeholder="Dashboard Name" 
+              className="w-full border-gray-300 rounded-md shadow-sm p-2 border mb-4"
+              value={dashboardName}
+              onChange={e => setDashboardName(e.target.value)}
+              autoFocus
+            />
+            <div className="flex justify-end space-x-3 mt-6">
+              <button onClick={() => setShowSaveModal(false)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200">Cancel</button>
+              <button onClick={saveDashboard} disabled={!dashboardName} className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50">Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Load Dashboard Modal */}
+      {showLoadModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl w-[500px] p-6 max-h-[80vh] flex flex-col">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-800 flex items-center"><FolderOpen className="h-5 w-5 mr-2 text-blue-500"/> Load Dashboard</h2>
+              <button onClick={() => setShowLoadModal(false)} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="overflow-y-auto flex-1 border border-gray-200 rounded-md">
+              {savedDashboards.length === 0 ? (
+                <div className="p-8 text-center text-gray-500">No saved dashboards found.</div>
+              ) : (
+                <ul className="divide-y divide-gray-200">
+                  {savedDashboards.map(db => (
+                    <li key={db.dashboard_id} className="p-4 hover:bg-gray-50 flex justify-between items-center group cursor-pointer" onClick={() => loadDashboard(db.dashboard_id)}>
+                      <div>
+                        <p className="font-semibold text-gray-800">{db.name}</p>
+                        <p className="text-xs text-gray-500">{new Date(db.created_at).toLocaleString()}</p>
+                      </div>
+                      <span className="text-blue-600 text-sm opacity-0 group-hover:opacity-100 transition-opacity font-medium">Load</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div className="flex justify-end mt-4">
+              <button onClick={() => setShowLoadModal(false)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
