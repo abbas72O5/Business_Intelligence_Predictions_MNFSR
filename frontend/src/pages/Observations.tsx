@@ -73,8 +73,6 @@ export default function Observations() {
   });
 
   const [configuringChartId, setConfiguringChartId] = useState<string | null>(null);
-  const [vizCanvasHeight, setVizCanvasHeight] = useState(600);
-  const [vizCanvasWidth, setVizCanvasWidth] = useState(100);
   const [panelWidth, setPanelWidth] = useState(350);
   const [isResizing, setIsResizing] = useState(false);
 
@@ -486,66 +484,17 @@ export default function Observations() {
 
       <div className="flex-1 flex flex-row overflow-hidden relative bg-gray-200">
         <div className="flex-1 overflow-y-auto p-4" style={{ pointerEvents: isResizing ? 'none' : 'auto' }}>
-
-          {/* Visualization & Configuration Mode */}
-          {configuringChartId ? (
-            <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-140px)]">
-              {/* Visualization Preview Pane */}
-              <div className="flex-1 bg-gray-50 rounded-lg shadow-sm border border-gray-200 p-4 flex flex-col overflow-y-auto">
-
-                <div
-                  className="bg-white border-2 border-dashed border-gray-200 rounded-lg flex items-center justify-center transition-all mx-auto shadow-sm"
-                  style={{ height: `${vizCanvasHeight}px`, width: `${vizCanvasWidth}%` }}
-                >
-                  {renderPlot(charts.find(c => c.id === configuringChartId)!)}
-                </div>
-
-                {/* Visualization Canvas Size Adjusters */}
-                <div className="mt-6 flex flex-col items-center space-y-4 pb-4">
-                  <div className="flex items-center space-x-2 text-sm text-gray-500 font-medium">
-                    <Settings className="h-4 w-4" />
-                    <span>Adjust Preview Size</span>
-                  </div>
-                  <div className="flex space-x-8 w-full max-w-md bg-white p-4 rounded-md border border-gray-200 shadow-sm">
-                    <div className="flex-1">
-                      <label className="block text-xs text-gray-500 mb-2 font-medium">Height ({vizCanvasHeight}px)</label>
-                      <input
-                        type="range"
-                        min="300"
-                        max="1200"
-                        value={vizCanvasHeight}
-                        onChange={(e) => setVizCanvasHeight(Number(e.target.value))}
-                        className="w-full accent-green-600"
-                      />
-                    </div>
-                    <div className="flex-1">
-                      <label className="block text-xs text-gray-500 mb-2 font-medium">Width ({vizCanvasWidth}%)</label>
-                      <input
-                        type="range"
-                        min="40"
-                        max="100"
-                        value={vizCanvasWidth}
-                        onChange={(e) => setVizCanvasWidth(Number(e.target.value))}
-                        className="w-full accent-green-600"
-                      />
-                    </div>
-                  </div>
-                </div>
-
+          <div
+            id="dashboard-canvas"
+            className="bg-gray-50 border border-gray-300 shadow-sm rounded-lg p-6 mx-auto resize overflow-hidden"
+            style={{ minWidth: '600px', width: '100%', minHeight: '100%' }}
+          >
+            {charts.length === 0 ? (
+              <div className="flex flex-col items-center justify-center h-64 text-gray-400 border-2 border-dashed border-gray-200 rounded-lg bg-white mt-10">
+                <BarChart2 className="h-16 w-16 mb-4 text-gray-300" />
+                <p>Your dashboard is empty. Click "Add Visual" to create a chart.</p>
               </div>
-            </div>
-          ) : (
-            <div
-              id="dashboard-canvas"
-              className="bg-gray-50 border border-gray-300 shadow-sm rounded-lg p-6 mx-auto resize overflow-hidden"
-              style={{ minWidth: '600px', width: '100%', minHeight: '100%' }}
-            >
-              {charts.length === 0 ? (
-                <div className="flex flex-col items-center justify-center h-64 text-gray-400 border-2 border-dashed border-gray-200 rounded-lg bg-white mt-10">
-                  <BarChart2 className="h-16 w-16 mb-4 text-gray-300" />
-                  <p>Your dashboard is empty. Click "Add Visual" to create a chart.</p>
-                </div>
-              ) : (
+            ) : (
                 <div className="flex flex-wrap gap-6 items-start pb-8">
                   {charts.map(chart => (
                     <div
@@ -628,6 +577,9 @@ export default function Observations() {
                           setResizingChartId(chart.id);
                           setStartSize({ w: chart.width || 500, h: chart.height || 450, x: e.clientX, y: e.clientY });
                         }}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                        }}
                       >
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-full h-full text-gray-400">
                           <path d="M15 21v-6h6M21 21l-7-7" strokeLinecap="round" strokeLinejoin="round" />
@@ -636,9 +588,8 @@ export default function Observations() {
                     </div>
                   ))}
                 </div>
-              )}
-            </div>
-          )}
+            )}
+          </div>
         </div>
 
         {/* Resizer Handle */}

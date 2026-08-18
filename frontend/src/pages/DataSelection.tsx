@@ -38,8 +38,6 @@ function DataSelectionCanvas() {
   const [isSaveModelModalOpen, setIsSaveModelModalOpen] = useState(false);
   const [newTableName, setNewTableName] = useState('');
   const [newModelName, setNewModelName] = useState('');
-  const [canvasHeight, setCanvasHeight] = useState(600);
-  const [canvasWidth, setCanvasWidth] = useState(100);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -602,60 +600,24 @@ function DataSelectionCanvas() {
         </div>
 
         {/* Main Canvas Area */}
-        <div className="flex-1 flex flex-col min-w-0 bg-gray-100 rounded-lg shadow-sm border border-gray-200 overflow-y-auto overflow-x-hidden relative">
-          <div className="w-full flex justify-center py-4 bg-gray-50 border-b border-gray-200">
-            <div className="flex items-center space-x-6 w-full max-w-xl px-4">
-              <div className="flex items-center space-x-2 text-sm text-gray-500 font-medium">
-                <Settings className="h-4 w-4" />
-                <span className="whitespace-nowrap">Adjust Canvas</span>
-              </div>
-              <div className="flex-1">
-                <label className="block text-xs text-gray-500 mb-1 font-medium">Height ({canvasHeight}px)</label>
-                <input
-                  type="range"
-                  min="400"
-                  max="2000"
-                  value={canvasHeight}
-                  onChange={(e) => setCanvasHeight(Number(e.target.value))}
-                  className="w-full accent-green-600"
-                />
-              </div>
-              <div className="flex-1">
-                <label className="block text-xs text-gray-500 mb-1 font-medium">Width ({canvasWidth}%)</label>
-                <input
-                  type="range"
-                  min="40"
-                  max="100"
-                  value={canvasWidth}
-                  onChange={(e) => setCanvasWidth(Number(e.target.value))}
-                  className="w-full accent-green-600"
-                />
-              </div>
-            </div>
-          </div>
-          
-          <div className="p-6">
-            <div 
-              ref={reactFlowWrapper} 
-              className="bg-white mx-auto shadow-sm border border-gray-300 rounded-md overflow-hidden relative"
-              style={{ height: `${canvasHeight}px`, width: `${canvasWidth}%`, transition: 'all 0.2s ease' }}
+        <div className="flex-1 flex flex-col min-w-0 bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden relative">
+          <div className="flex-1" ref={reactFlowWrapper}>
+            <ReactFlow
+              nodes={nodes}
+              edges={edges}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChangeIntercept}
+              onConnect={onConnect}
+              onDrop={onDrop}
+              onDragOver={onDragOver}
+              onNodeContextMenu={onNodeContextMenu}
+              onEdgeClick={onEdgeClick}
+              onPaneClick={closeNodeContextMenu}
+              nodeTypes={nodeTypes}
+              fitView
+              className="bg-gray-50"
             >
-              <ReactFlow
-                nodes={nodes}
-                edges={edges}
-                onNodesChange={onNodesChange}
-                onEdgesChange={onEdgesChangeIntercept}
-                onConnect={onConnect}
-                onDrop={onDrop}
-                onDragOver={onDragOver}
-                onNodeContextMenu={onNodeContextMenu}
-                onEdgeClick={onEdgeClick}
-                onPaneClick={closeNodeContextMenu}
-                nodeTypes={nodeTypes}
-                fitView
-                className="bg-gray-50"
-              >
-                <Background color="#ccc" gap={16} />
+              <Background color="#ccc" gap={16} />
               <Controls />
               {nodeContextMenu && (
                 <div
@@ -670,8 +632,7 @@ function DataSelectionCanvas() {
                   </button>
                 </div>
               )}
-              </ReactFlow>
-            </div>
+            </ReactFlow>
           </div>
 
           {/* Bottom Selected Schema Panel */}
