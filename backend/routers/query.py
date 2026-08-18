@@ -308,8 +308,8 @@ async def save_model(request: SaveModelRequest, current_user = Depends(get_curre
 
 @router.get("/saved_models", response_model=list[SavedModelMetadata])
 async def get_saved_models(current_user = Depends(get_current_user)):
-    cursor = db.saved_models.find({"created_by": str(current_user["_id"])})
-    models = await cursor.to_list(length=1000)
+    cursor = db.saved_models.find({"created_by": str(current_user["_id"])}).sort("created_at", -1)
+    models = await cursor.to_list(length=100)
     for m in models:
         m["id"] = str(m["_id"])
     return models

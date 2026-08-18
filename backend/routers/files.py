@@ -114,8 +114,7 @@ async def upload_file(file: UploadFile = File(...), current_user = Depends(get_c
 
 @router.get("/", response_model=list[TableMetadata])
 async def get_files(current_user = Depends(get_current_user)):
-    department = current_user.get("department")
-    query = {"department": department} if department else {}
+    query = {"uploaded_by": str(current_user["_id"])}
     cursor = db.table_metadata.find(query).sort("uploaded_at", -1)
     files = await cursor.to_list(length=100)
     
