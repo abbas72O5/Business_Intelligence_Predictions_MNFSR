@@ -41,3 +41,12 @@ A comprehensive Business Intelligence and Analytics platform designed for minist
   - **Slide-out Properties Panel:** Professional BI experience with a resizable, contextual side-panel that slides out on the right to handle granular dataset, axis, and grouping configurations for the currently selected widget.
   - **Premium Plotly Overhauls:** Completely native overriding of Plotly default styles to inject a modern horizontal ModeBar with clean white backgrounds and system-matching green icons.
   - **Full Dashboard Export:** One-click layout export capabilities allowing users to snapshot their entire multi-chart canvas into high-resolution PNG, JPEG, or PDF formats using `html-to-image` and `jsPDF`.
+
+- **Geospatial Mapping Engine (Folium + DuckDB):**
+  - **Leaflet.js Integration:** Replaced Plotly's WebGL map engine with Python's Folium to generate lightweight, native HTML Leaflet.js maps directly on the backend, entirely eliminating client-side WebGL canvas crashes.
+  - **Bubble & Heat Maps:** Advanced spatial visualization modules allowing dynamic plotting of geographical coordinates (Bubble Maps) or aggregating overlapping data into spatial density layers (Heat Maps).
+  - **Secure Iframe Sandbox:** The React frontend seamlessly ingests the generated HTML map payload and isolates it within a sandboxed `iframe`, ensuring perfect integration within the resizable dashboard layout without breaking React's lifecycle.
+
+- **Multi-Tenant Data Siloing:**
+  - **Owner-Based Isolation:** Implemented strict query filtering across the backend where file metadata, analytical models, and datasets are isolated directly by the `uploaded_by` or `created_by` user identifier.
+  - **Departmental Boundaries:** Ensures users can only query, visualize, and construct predictive relationships on data explicitly owned by or shared within their verified administrative boundary.
