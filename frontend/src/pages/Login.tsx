@@ -39,7 +39,6 @@ export default function Login() {
             Ministry Of Nationl Food Security and Research
           </h1>
           <p className="text-xl text-green-100 max-w-2xl mx-auto leading-relaxed">
-            Secure Departmental Access Portal. Monitor allocations, analyze expenditure, and utilize AI-driven budget forecasting to manage development portfolios effectively.
           </p>
         </div>
       </div>

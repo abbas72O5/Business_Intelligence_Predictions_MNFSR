@@ -495,99 +495,99 @@ export default function Observations() {
                 <p>Your dashboard is empty. Click "Add Visual" to create a chart.</p>
               </div>
             ) : (
-                <div className="flex flex-wrap gap-6 items-start pb-8">
-                  {charts.map(chart => (
-                    <div
-                      key={chart.id}
-                      draggable={draggableChartId === chart.id}
-                      onDragStart={(e) => {
-                        setDraggedChartId(chart.id);
-                        e.dataTransfer.effectAllowed = 'move';
-                      }}
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        if (dragOverChartId !== chart.id) setDragOverChartId(chart.id);
-                      }}
-                      onDragLeave={() => {
-                        if (dragOverChartId === chart.id) setDragOverChartId(null);
-                      }}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        if (draggedChartId && draggedChartId !== chart.id) {
-                          const fromIndex = charts.findIndex(c => c.id === draggedChartId);
-                          const toIndex = charts.findIndex(c => c.id === chart.id);
-                          if (fromIndex !== -1 && toIndex !== -1) {
-                            const newCharts = [...charts];
-                            const [movedChart] = newCharts.splice(fromIndex, 1);
-                            newCharts.splice(toIndex, 0, movedChart);
-                            setCharts(newCharts);
-                          }
+              <div className="flex flex-wrap gap-6 items-start pb-8">
+                {charts.map(chart => (
+                  <div
+                    key={chart.id}
+                    draggable={draggableChartId === chart.id}
+                    onDragStart={(e) => {
+                      setDraggedChartId(chart.id);
+                      e.dataTransfer.effectAllowed = 'move';
+                    }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      if (dragOverChartId !== chart.id) setDragOverChartId(chart.id);
+                    }}
+                    onDragLeave={() => {
+                      if (dragOverChartId === chart.id) setDragOverChartId(null);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      if (draggedChartId && draggedChartId !== chart.id) {
+                        const fromIndex = charts.findIndex(c => c.id === draggedChartId);
+                        const toIndex = charts.findIndex(c => c.id === chart.id);
+                        if (fromIndex !== -1 && toIndex !== -1) {
+                          const newCharts = [...charts];
+                          const [movedChart] = newCharts.splice(fromIndex, 1);
+                          newCharts.splice(toIndex, 0, movedChart);
+                          setCharts(newCharts);
                         }
-                        setDraggedChartId(null);
-                        setDragOverChartId(null);
-                      }}
-                      onDragEnd={() => {
-                        setDraggedChartId(null);
-                        setDragOverChartId(null);
-                      }}
-                      style={{ width: chart.width || 500, height: chart.height || 450 }}
-                      className={`bg-white rounded-lg shadow-sm border ${configuringChartId === chart.id ? 'border-green-500 ring-2 ring-green-200' : 'border-gray-200'} ${dragOverChartId === chart.id ? 'border-blue-500 border-2 border-dashed opacity-75' : ''} ${draggedChartId === chart.id ? 'opacity-50' : ''} flex flex-col relative group cursor-pointer transition-all duration-200`}
-                      onClick={() => setConfiguringChartId(chart.id)}
-                      onContextMenu={(e) => {
+                      }
+                      setDraggedChartId(null);
+                      setDragOverChartId(null);
+                    }}
+                    onDragEnd={() => {
+                      setDraggedChartId(null);
+                      setDragOverChartId(null);
+                    }}
+                    style={{ width: chart.width || 500, height: chart.height || 450 }}
+                    className={`bg-white rounded-lg shadow-sm border ${configuringChartId === chart.id ? 'border-green-500 ring-2 ring-green-200' : 'border-gray-200'} ${dragOverChartId === chart.id ? 'border-blue-500 border-2 border-dashed opacity-75' : ''} ${draggedChartId === chart.id ? 'opacity-50' : ''} flex flex-col relative group cursor-pointer transition-all duration-200`}
+                    onClick={() => setConfiguringChartId(chart.id)}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      setConfiguringChartId(chart.id);
+                    }}
+                  >
+                    {/* Drag Handle */}
+                    <div
+                      className="absolute top-2 left-2 p-1.5 cursor-move opacity-0 group-hover:opacity-100 transition-opacity z-20 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-md"
+                      title="Drag to move"
+                      onMouseEnter={() => setDraggableChartId(chart.id)}
+                      onMouseLeave={() => setDraggableChartId(null)}
+                    >
+                      <Move className="h-4 w-4" />
+                    </div>
+
+                    {/* Header Actions */}
+                    <div className="absolute top-2 right-2 flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                      <button onClick={(e) => { e.stopPropagation(); removeChart(chart.id); }} className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-md" title="Remove Visual">
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+
+                    {/* Chart Area */}
+                    <div className="flex-1 w-full h-full relative p-2 pt-8">
+                      {chart.chartData.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center h-full text-gray-400">
+                          <BarChart2 className="h-12 w-12 mb-2 text-gray-200" />
+                          <p className="text-sm">Not Configured</p>
+                          <p className="mt-2 text-xs text-green-600 font-medium">Click to configure</p>
+                        </div>
+                      ) : (
+                        renderPlot(chart)
+                      )}
+                    </div>
+
+                    {/* Resize Handle */}
+                    <div
+                      className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize z-20 opacity-0 group-hover:opacity-100"
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
                         e.preventDefault();
-                        setConfiguringChartId(chart.id);
+                        setResizingChartId(chart.id);
+                        setStartSize({ w: chart.width || 500, h: chart.height || 450, x: e.clientX, y: e.clientY });
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
                       }}
                     >
-                      {/* Drag Handle */}
-                      <div
-                        className="absolute top-2 left-2 p-1.5 cursor-move opacity-0 group-hover:opacity-100 transition-opacity z-20 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-md"
-                        title="Drag to move"
-                        onMouseEnter={() => setDraggableChartId(chart.id)}
-                        onMouseLeave={() => setDraggableChartId(null)}
-                      >
-                        <Move className="h-4 w-4" />
-                      </div>
-
-                      {/* Header Actions */}
-                      <div className="absolute top-2 right-2 flex space-x-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                        <button onClick={(e) => { e.stopPropagation(); removeChart(chart.id); }} className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-md" title="Remove Visual">
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-
-                      {/* Chart Area */}
-                      <div className="flex-1 w-full h-full relative p-2 pt-8">
-                        {chart.chartData.length === 0 ? (
-                          <div className="flex flex-col items-center justify-center h-full text-gray-400">
-                            <BarChart2 className="h-12 w-12 mb-2 text-gray-200" />
-                            <p className="text-sm">Not Configured</p>
-                            <p className="mt-2 text-xs text-green-600 font-medium">Click to configure</p>
-                          </div>
-                        ) : (
-                          renderPlot(chart)
-                        )}
-                      </div>
-
-                      {/* Resize Handle */}
-                      <div
-                        className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize z-20 opacity-0 group-hover:opacity-100"
-                        onMouseDown={(e) => {
-                          e.stopPropagation();
-                          e.preventDefault();
-                          setResizingChartId(chart.id);
-                          setStartSize({ w: chart.width || 500, h: chart.height || 450, x: e.clientX, y: e.clientY });
-                        }}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                        }}
-                      >
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-full h-full text-gray-400">
-                          <path d="M15 21v-6h6M21 21l-7-7" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
-                      </div>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-full h-full text-gray-400">
+                        <path d="M15 21v-6h6M21 21l-7-7" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
                     </div>
-                  ))}
-                </div>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </div>
