@@ -30,6 +30,7 @@ class ObservationQueryRequest(BaseModel):
     lon_column: Optional[str] = None
     val_column: Optional[str] = None
     label_column: Optional[str] = None
+    map_type: Optional[str] = "bubble"
     table_columns: Optional[List[str]] = None
     group_by: bool = False
     aggregation: Optional[str] = None

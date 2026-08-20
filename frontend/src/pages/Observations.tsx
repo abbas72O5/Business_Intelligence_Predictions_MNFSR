@@ -256,6 +256,7 @@ export default function Observations() {
         lon_column: chart.lonColumn || null,
         val_column: chart.valColumn || null,
         label_column: chart.labelColumn || null,
+        map_type: chart.chartType === 'map' ? chart.mapType : null,
         table_columns: chart.chartType === 'table' ? chart.tableColumns : null,
         x_cast_type: chart.xAxisProps.type || null,
         y_cast_type: chart.yAxisProps.type || null,
@@ -373,58 +374,30 @@ export default function Observations() {
     if (chart.chartType === 'map') {
       const latValues = chart.chartData.map(d => Number(d[chart.latColumn || '']) || 0);
       const lonValues = chart.chartData.map(d => Number(d[chart.lonColumn || '']) || 0);
-      const valValues = chart.chartData.map(d => Number(d[chart.valColumn || '']) || 0);
-      const labelValues = chart.labelColumn ? chart.chartData.map(d => String(d['label'] || '')) : chart.chartData.map(() => '');
 
       const avgLat = latValues.length > 0 ? latValues.reduce((a, b) => a + b, 0) / latValues.length : 30.3753;
       const avgLon = lonValues.length > 0 ? lonValues.reduce((a, b) => a + b, 0) / lonValues.length : 69.3451;
 
-      if (chart.mapType === 'heat') {
-        data = [{
-          type: 'densitymapbox',
-          lat: latValues,
-          lon: lonValues,
-          z: valValues,
-          radius: 20,
-          colorscale: 'Viridis'
-        }];
-      } else {
-        const maxVal = Math.max(...valValues) || 1;
-        const minVal = Math.min(...valValues) || 0;
-        const sizes = valValues.map(v => {
-           if (maxVal === minVal) return 15;
-           return 5 + ((v - minVal) / (maxVal - minVal)) * 25;
-        });
+      console.log("Map Debug: latValues", latValues);
+      console.log("Map Debug: lonValues", lonValues);
+      console.log("Map Debug: avgLat", avgLat, "avgLon", avgLon);
 
-        data = [{
-          type: 'scattermapbox',
-          mode: 'markers',
-          lat: latValues,
-          lon: lonValues,
-          text: labelValues,
-          marker: {
-            size: sizes,
-            color: valValues,
-            colorscale: 'Viridis',
-            showscale: true
-          }
-        }];
+      if (chart.chartData && chart.chartData.length > 0 && chart.chartData[0].map_html) {
+        return (
+          <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+            <div className="absolute top-2 left-1/2 transform -translate-x-1/2 bg-white px-3 py-1 rounded shadow text-sm font-semibold z-[1000] pointer-events-none">
+              {chart.mapType === 'heat' ? 'Heat Map' : 'Bubble Map'} of {chart.valColumn || 'Value'}
+            </div>
+            <iframe
+              title={`map-${chart.id}`}
+              srcDoc={chart.chartData[0].map_html}
+              style={{ width: '100%', height: '100%', border: 'none' }}
+              sandbox="allow-scripts allow-same-origin"
+            />
+          </div>
+        );
       }
-
-      layoutAdditions = {
-        mapbox: {
-          style: 'white-bg',
-          layers: [
-            {
-              sourcetype: 'raster',
-              source: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
-              below: 'traces'
-            }
-          ],
-          center: { lat: avgLat, lon: avgLon },
-          zoom: 4
-        }
-      };
+      return <div className="flex items-center justify-center h-full text-gray-400">Loading Map...</div>;
     } else if (chart.chartType === 'bar') {
       data = [{ type: 'bar', x: xValues, y: yValues, marker: { color: '#16a34a' } }];
     } else if (chart.chartType === 'line') {
@@ -475,7 +448,9 @@ export default function Observations() {
 
     let chartLayout: any = {
       title: chartTitle,
-      autosize: true,
+      width: chart.width,
+      height: chart.height,
+      autosize: false,
       margin: { l: 50, r: 50, b: 50, t: 50, pad: 4 },
       paper_bgcolor: 'transparent',
       plot_bgcolor: 'transparent',
@@ -502,17 +477,17 @@ export default function Observations() {
 
     return (
       <Plot
+        key={`${chart.id}-${chart.chartType}-${chart.chartData.length}`}
         data={data}
         layout={chartLayout}
         config={{
           displayModeBar: true,
           scrollZoom: true,
           displaylogo: false,
-          mapboxAccessToken: '',
           modeBarButtonsToAdd: chart.chartType === 'map' ? undefined : ['pan2d', 'zoom2d', 'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d']
         }}
-        useResizeHandler={true}
-        style={{ width: '100%', height: '100%' }}
+        useResizeHandler={false}
+        style={{ width: `${chart.width}px`, height: `${chart.height}px` }}
       />
     );
   };

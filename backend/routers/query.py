@@ -320,12 +320,61 @@ async def generate_observation(request: ObservationQueryRequest, current_user = 
             
         df = duckdb.query(sql).df()
         
-        # Convert any date/time columns to string for JSON serialization
-        for col in df.select_dtypes(include=['datetime64', 'datetimetz']).columns:
-            df[col] = df[col].astype(str)
+        if request.chart_type == "map":
+            import folium
+            import math
             
-        return df.fillna("").to_dict(orient="records")
-        
+            # Drop rows with missing lat/lon
+            df = df.dropna(subset=[request.lat_column, request.lon_column])
+            
+            if df.empty:
+                m = folium.Map(location=[30.3753, 69.3451], zoom_start=4, tiles="CartoDB Positron")
+                return [{"map_html": m._repr_html_()}]
+                
+            avg_lat = df[request.lat_column].mean()
+            avg_lon = df[request.lon_column].mean()
+            
+            m = folium.Map(location=[avg_lat, avg_lon], zoom_start=4, tiles="CartoDB Positron")
+            
+            # Map type depends on whether they chose Heat Map or Bubble Map.
+            if request.map_type == 'heat':
+                from folium.plugins import HeatMap
+                heat_data = df[[request.lat_column, request.lon_column, request.val_column]].values.tolist()
+                HeatMap(heat_data, radius=15).add_to(m)
+            else:
+                # Bubble Map
+                max_val = df[request.val_column].max()
+                min_val = df[request.val_column].min()
+                
+                for idx, row in df.iterrows():
+                    val = row[request.val_column]
+                    if math.isnan(val):
+                        continue
+                    # Scale radius between 5 and 20
+                    if max_val == min_val:
+                        radius = 10
+                    else:
+                        radius = 5 + ((val - min_val) / (max_val - min_val)) * 15
+                        
+                    
+                    lbl = row.get('label')
+                    if 'label' in df.columns and lbl is not None and str(lbl) != 'nan' and str(lbl).strip() != '':
+                        tooltip = str(lbl)
+                    else:
+                        tooltip = f"Value: {val}"
+                    
+                    folium.CircleMarker(
+                        location=[row[request.lat_column], row[request.lon_column]],
+                        radius=radius,
+                        color='#16a34a',
+                        fill=True,
+                        fill_color='#16a34a',
+                        fill_opacity=0.6,
+                        tooltip=tooltip
+                    ).add_to(m)
+                    
+            return [{"map_html": m._repr_html_()}]
+
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Observation query failed: {str(e)}")
 
