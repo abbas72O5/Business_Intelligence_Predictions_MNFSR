@@ -413,7 +413,14 @@ export default function Observations() {
 
       layoutAdditions = {
         mapbox: {
-          style: 'open-street-map',
+          style: 'white-bg',
+          layers: [
+            {
+              sourcetype: 'raster',
+              source: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+              below: 'traces'
+            }
+          ],
           center: { lat: avgLat, lon: avgLon },
           zoom: 4
         }
@@ -466,37 +473,43 @@ export default function Observations() {
         chartTitle += ` - ${chart.mapType === 'heat' ? 'Heat Map' : 'Bubble Map'} of ${valName}`;
     }
 
+    let chartLayout: any = {
+      title: chartTitle,
+      autosize: true,
+      margin: { l: 50, r: 50, b: 50, t: 50, pad: 4 },
+      paper_bgcolor: 'transparent',
+      plot_bgcolor: 'transparent',
+      dragmode: 'pan',
+      modebar: {
+        orientation: 'h',
+        bgcolor: '#ffffff',
+        color: '#16a34a',
+        activecolor: '#15803d'
+      },
+      ...layoutAdditions
+    };
+
+    if (chart.chartType !== 'map') {
+      chartLayout.yaxis = {
+        title: chart.groupBy ? `${chart.aggregation}(${actualYLabel})` : actualYLabel,
+        ...(chart.yAxisProps?.type === 'Integer' ? { tickformat: 'd' } : {})
+      };
+      chartLayout.xaxis = {
+        title: actualXLabel,
+        ...(chart.xAxisProps?.type === 'Integer' ? { tickformat: 'd' } : {})
+      };
+    }
+
     return (
       <Plot
         data={data}
-        layout={{
-          title: chartTitle,
-          yaxis: chart.chartType !== 'map' ? {
-            title: chart.groupBy ? `${chart.aggregation}(${actualYLabel})` : actualYLabel,
-            ...(chart.yAxisProps?.type === 'Integer' ? { tickformat: 'd' } : {})
-          } : undefined,
-          xaxis: chart.chartType !== 'map' ? {
-            title: actualXLabel,
-            ...(chart.xAxisProps?.type === 'Integer' ? { tickformat: 'd' } : {})
-          } : undefined,
-          autosize: true,
-          margin: { l: 50, r: 50, b: 50, t: 50, pad: 4 },
-          paper_bgcolor: 'transparent',
-          plot_bgcolor: 'transparent',
-          dragmode: 'pan',
-          modebar: {
-            orientation: 'h',
-            bgcolor: '#ffffff',
-            color: '#16a34a',
-            activecolor: '#15803d'
-          },
-          ...layoutAdditions
-        }}
+        layout={chartLayout}
         config={{
           displayModeBar: true,
           scrollZoom: true,
           displaylogo: false,
-          modeBarButtonsToAdd: ['pan2d', 'zoom2d', 'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d']
+          mapboxAccessToken: '',
+          modeBarButtonsToAdd: chart.chartType === 'map' ? undefined : ['pan2d', 'zoom2d', 'zoomIn2d', 'zoomOut2d', 'autoScale2d', 'resetScale2d']
         }}
         useResizeHandler={true}
         style={{ width: '100%', height: '100%' }}
@@ -921,7 +934,7 @@ export default function Observations() {
                   )}
 
                   {/* Data Operations */}
-                  {configuringChart.chartType !== 'table' && (
+                  {configuringChart.chartType !== 'table' && configuringChart.chartType !== 'map' && (
                     <div className="pt-4 border-t border-gray-200">
                       <div className="flex items-center justify-between mb-3">
                         <label className="text-sm font-medium text-gray-700 flex items-center">
