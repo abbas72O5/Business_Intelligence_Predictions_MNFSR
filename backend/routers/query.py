@@ -186,7 +186,49 @@ async def generate_table(request: GenerateRequest, current_user = Depends(get_cu
 @router.post("/observations")
 async def generate_observation(request: ObservationQueryRequest, current_user = Depends(get_current_user)):
     try:
-        if request.table_columns:
+        if request.chart_type == "map":
+            if not request.lat_column or not request.lon_column or not request.val_column:
+                raise HTTPException(status_code=400, detail="Latitude, Longitude, and Value columns are required for Map.")
+                
+            lat_cast = f"TRY_CAST(\"{request.lat_column}\" AS DOUBLE)"
+            lon_cast = f"TRY_CAST(\"{request.lon_column}\" AS DOUBLE)"
+            val_cast = f"TRY_CAST(\"{request.val_column}\" AS DOUBLE)"
+            label_col = f"\"{request.label_column}\"" if request.label_column else "NULL"
+            
+            where_sql = f"WHERE {lat_cast} IS NOT NULL AND {lon_cast} IS NOT NULL"
+            
+            if request.dataset_type == "model":
+                model_doc = await db.saved_models.find_one({"model_id": request.table_id})
+                if not model_doc:
+                    raise HTTPException(status_code=404, detail="Model not found.")
+                from models.query import QueryColumn, JoinCondition
+                q_cols = [QueryColumn(**c) for c in model_doc["columns"]]
+                q_joins = [JoinCondition(**j) for j in model_doc["joins"]]
+                base_request = QueryRequest(columns=q_cols, joins=q_joins)
+                base_sql = await build_duckdb_query(base_request, current_user)
+                
+                if request.group_by and request.aggregation:
+                    agg_func = request.aggregation.upper()
+                    if agg_func not in ["SUM", "AVG", "COUNT", "MIN", "MAX"]:
+                        raise HTTPException(status_code=400, detail="Invalid aggregation function.")
+                    sql = f"SELECT {lat_cast} as \"{request.lat_column}\", {lon_cast} as \"{request.lon_column}\", {agg_func}({val_cast}) as \"{request.val_column}\", MAX({label_col}) as label FROM ({base_sql}) {where_sql} GROUP BY {lat_cast}, {lon_cast} LIMIT 2000"
+                else:
+                    sql = f"SELECT {lat_cast} as \"{request.lat_column}\", {lon_cast} as \"{request.lon_column}\", {val_cast} as \"{request.val_column}\", {label_col} as label FROM ({base_sql}) {where_sql} LIMIT 2000"
+            else:
+                file_doc = await db.table_metadata.find_one({"table_id": request.table_id})
+                if not file_doc:
+                    raise HTTPException(status_code=404, detail="Table not found.")
+                storage_path = file_doc["storage_path"]
+                
+                if request.group_by and request.aggregation:
+                    agg_func = request.aggregation.upper()
+                    if agg_func not in ["SUM", "AVG", "COUNT", "MIN", "MAX"]:
+                        raise HTTPException(status_code=400, detail="Invalid aggregation function.")
+                    sql = f"SELECT {lat_cast} as \"{request.lat_column}\", {lon_cast} as \"{request.lon_column}\", {agg_func}({val_cast}) as \"{request.val_column}\", MAX({label_col}) as label FROM '{storage_path}' {where_sql} GROUP BY {lat_cast}, {lon_cast} LIMIT 2000"
+                else:
+                    sql = f"SELECT {lat_cast} as \"{request.lat_column}\", {lon_cast} as \"{request.lon_column}\", {val_cast} as \"{request.val_column}\", {label_col} as label FROM '{storage_path}' {where_sql} LIMIT 2000"
+                    
+        elif request.chart_type == "table" and request.table_columns:
             cols_sql = ", ".join([f"\"{c}\"" for c in request.table_columns])
             if request.dataset_type == "model":
                 model_doc = await db.saved_models.find_one({"model_id": request.table_id})

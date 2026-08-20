@@ -23,8 +23,13 @@ class GenerateRequest(QueryRequest):
 class ObservationQueryRequest(BaseModel):
     table_id: str
     dataset_type: str = "table" # "table" or "model"
+    chart_type: str = "bar" # "bar", "line", "pie", "scatter", "table", "map"
     x_column: Optional[str] = None
     y_column: Optional[str] = None
+    lat_column: Optional[str] = None
+    lon_column: Optional[str] = None
+    val_column: Optional[str] = None
+    label_column: Optional[str] = None
     table_columns: Optional[List[str]] = None
     group_by: bool = False
     aggregation: Optional[str] = None

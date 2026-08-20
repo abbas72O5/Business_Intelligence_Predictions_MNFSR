@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import Plot from 'react-plotly.js';
 import { toPng, toJpeg } from 'html-to-image';
 import { jsPDF } from 'jspdf';
-import { LineChart, BarChart2, PieChart, ScatterChart, Settings, Database, Filter, PlusCircle, X, Trash2, Download, ChevronDown, Image as ImageIcon, FileText, Save, FolderOpen, Move, Table, Grid, Network } from 'lucide-react';
+import { LineChart, BarChart2, PieChart, ScatterChart, Settings, Database, Filter, PlusCircle, X, Trash2, Download, ChevronDown, Image as ImageIcon, FileText, Save, FolderOpen, Move, Table, Grid, Network, Map as MapIcon } from 'lucide-react';
 
 interface ColumnMetadata {
   name: string;
@@ -25,6 +25,11 @@ interface ChartConfig {
   chartType: string;
   xColumn: string;
   yColumn: string;
+  latColumn?: string;
+  lonColumn?: string;
+  valColumn?: string;
+  labelColumn?: string;
+  mapType?: string;
   xAxisProps: { label: string; type: string };
   yAxisProps: { label: string; type: string };
   groupBy: boolean;
@@ -170,6 +175,11 @@ export default function Observations() {
       chartType: 'bar',
       xColumn: '',
       yColumn: '',
+      latColumn: '',
+      lonColumn: '',
+      valColumn: '',
+      labelColumn: '',
+      mapType: 'bubble',
       xAxisProps: { label: '', type: '' },
       yAxisProps: { label: '', type: '' },
       tableColumns: [],
@@ -216,7 +226,12 @@ export default function Observations() {
       return;
     }
 
-    if (chart.chartType !== 'table' && (!chart.xColumn || !chart.yColumn)) {
+    if (chart.chartType === 'map' && (!chart.latColumn || !chart.lonColumn || !chart.valColumn)) {
+      setError({ ...error, [chart.id]: "Please select Latitude, Longitude, and Value fields for the Map." });
+      return;
+    }
+
+    if (chart.chartType !== 'table' && chart.chartType !== 'map' && (!chart.xColumn || !chart.yColumn)) {
       setError({ ...error, [chart.id]: "Please select X-axis and Y-axis." });
       return;
     }
@@ -234,8 +249,13 @@ export default function Observations() {
       const res = await axios.post('http://localhost:8000/query/observations', {
         table_id: dataId,
         dataset_type: chart.selectedDataset.type,
+        chart_type: chart.chartType,
         x_column: chart.xColumn || null,
         y_column: chart.yColumn || null,
+        lat_column: chart.latColumn || null,
+        lon_column: chart.lonColumn || null,
+        val_column: chart.valColumn || null,
+        label_column: chart.labelColumn || null,
         table_columns: chart.chartType === 'table' ? chart.tableColumns : null,
         x_cast_type: chart.xAxisProps.type || null,
         y_cast_type: chart.yAxisProps.type || null,
@@ -348,8 +368,57 @@ export default function Observations() {
     const yValues = chart.chartData.map(d => d[chart.yColumn]);
 
     let data: any[] = [];
+    let layoutAdditions: any = {};
 
-    if (chart.chartType === 'bar') {
+    if (chart.chartType === 'map') {
+      const latValues = chart.chartData.map(d => Number(d[chart.latColumn || '']) || 0);
+      const lonValues = chart.chartData.map(d => Number(d[chart.lonColumn || '']) || 0);
+      const valValues = chart.chartData.map(d => Number(d[chart.valColumn || '']) || 0);
+      const labelValues = chart.labelColumn ? chart.chartData.map(d => String(d['label'] || '')) : chart.chartData.map(() => '');
+
+      const avgLat = latValues.length > 0 ? latValues.reduce((a, b) => a + b, 0) / latValues.length : 30.3753;
+      const avgLon = lonValues.length > 0 ? lonValues.reduce((a, b) => a + b, 0) / lonValues.length : 69.3451;
+
+      if (chart.mapType === 'heat') {
+        data = [{
+          type: 'densitymapbox',
+          lat: latValues,
+          lon: lonValues,
+          z: valValues,
+          radius: 20,
+          colorscale: 'Viridis'
+        }];
+      } else {
+        const maxVal = Math.max(...valValues) || 1;
+        const minVal = Math.min(...valValues) || 0;
+        const sizes = valValues.map(v => {
+           if (maxVal === minVal) return 15;
+           return 5 + ((v - minVal) / (maxVal - minVal)) * 25;
+        });
+
+        data = [{
+          type: 'scattermapbox',
+          mode: 'markers',
+          lat: latValues,
+          lon: lonValues,
+          text: labelValues,
+          marker: {
+            size: sizes,
+            color: valValues,
+            colorscale: 'Viridis',
+            showscale: true
+          }
+        }];
+      }
+
+      layoutAdditions = {
+        mapbox: {
+          style: 'open-street-map',
+          center: { lat: avgLat, lon: avgLon },
+          zoom: 4
+        }
+      };
+    } else if (chart.chartType === 'bar') {
       data = [{ type: 'bar', x: xValues, y: yValues, marker: { color: '#16a34a' } }];
     } else if (chart.chartType === 'line') {
       data = [{ type: 'scatter', mode: 'lines+markers', x: xValues, y: yValues, line: { color: '#16a34a' } }];
@@ -389,19 +458,27 @@ export default function Observations() {
     const actualXLabel = chart.xAxisProps?.label || chart.xColumn || '';
     const actualYLabel = chart.yAxisProps?.label || chart.yColumn || '';
 
+    let chartTitle = `${chart.selectedDataset?.data?.filename || chart.selectedDataset?.data?.name || 'Chart'}`;
+    if (chart.chartType !== 'map' && chart.chartType !== 'table') {
+        chartTitle += ` - ${chart.groupBy ? `${chart.aggregation}(${actualYLabel})` : actualYLabel} by ${actualXLabel}`;
+    } else if (chart.chartType === 'map') {
+        const valName = chart.valColumn || 'Value';
+        chartTitle += ` - ${chart.mapType === 'heat' ? 'Heat Map' : 'Bubble Map'} of ${valName}`;
+    }
+
     return (
       <Plot
         data={data}
         layout={{
-          title: `${chart.selectedDataset?.data?.filename || chart.selectedDataset?.data?.name || 'Chart'} - ${chart.groupBy ? `${chart.aggregation}(${actualYLabel})` : actualYLabel} by ${actualXLabel}`,
-          yaxis: {
+          title: chartTitle,
+          yaxis: chart.chartType !== 'map' ? {
             title: chart.groupBy ? `${chart.aggregation}(${actualYLabel})` : actualYLabel,
             ...(chart.yAxisProps?.type === 'Integer' ? { tickformat: 'd' } : {})
-          },
-          xaxis: {
+          } : undefined,
+          xaxis: chart.chartType !== 'map' ? {
             title: actualXLabel,
             ...(chart.xAxisProps?.type === 'Integer' ? { tickformat: 'd' } : {})
-          },
+          } : undefined,
           autosize: true,
           margin: { l: 50, r: 50, b: 50, t: 50, pad: 4 },
           paper_bgcolor: 'transparent',
@@ -410,9 +487,10 @@ export default function Observations() {
           modebar: {
             orientation: 'h',
             bgcolor: '#ffffff',
-            color: '#16a34a', // tailwind green-600
+            color: '#16a34a',
             activecolor: '#15803d'
-          }
+          },
+          ...layoutAdditions
         }}
         config={{
           displayModeBar: true,
@@ -674,6 +752,9 @@ export default function Observations() {
                       <button onClick={() => updateChart(configuringChart.id, { chartType: 'treemap' })} className={`flex items-center justify-center py-2 px-3 border rounded-md text-sm ${configuringChart.chartType === 'treemap' ? 'bg-green-50 border-green-500 text-green-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
                         <Network className="h-4 w-4 mr-1" /> Tree
                       </button>
+                      <button onClick={() => updateChart(configuringChart.id, { chartType: 'map' })} className={`flex items-center justify-center py-2 px-3 border rounded-md text-sm ${configuringChart.chartType === 'map' ? 'bg-green-50 border-green-500 text-green-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                        <MapIcon className="h-4 w-4 mr-1" /> Map
+                      </button>
                     </div>
                   </div>
 
@@ -704,6 +785,59 @@ export default function Observations() {
                           );
                         })}
                       </div>
+                    </div>
+                  ) : configuringChart.chartType === 'map' ? (
+                    <div>
+                      <div className="flex space-x-2 mb-4">
+                        <button onClick={() => updateChart(configuringChart.id, { mapType: 'bubble' })} className={`flex-1 py-1.5 text-xs font-medium border rounded ${configuringChart.mapType === 'bubble' ? 'bg-green-100 border-green-500 text-green-800' : 'bg-gray-50 border-gray-200 text-gray-600'}`}>Bubble Map</button>
+                        <button onClick={() => updateChart(configuringChart.id, { mapType: 'heat' })} className={`flex-1 py-1.5 text-xs font-medium border rounded ${configuringChart.mapType === 'heat' ? 'bg-green-100 border-green-500 text-green-800' : 'bg-gray-50 border-gray-200 text-gray-600'}`}>Heat Map</button>
+                      </div>
+                      
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Latitude Field (Numeric)</label>
+                      <select value={configuringChart.latColumn || ''} onChange={(e) => updateChart(configuringChart.id, { latColumn: e.target.value })} className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500 mb-3">
+                        <option value="" disabled>Select column...</option>
+                        {(configuringChart.selectedDataset.type === 'table' ? configuringChart.selectedDataset.data.columns : configuringChart.selectedDataset.data.columns_mapped).map((c: any) => (
+                           <option key={c.name} value={c.name}>{c.name}</option>
+                        ))}
+                      </select>
+
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Longitude Field (Numeric)</label>
+                      <select value={configuringChart.lonColumn || ''} onChange={(e) => updateChart(configuringChart.id, { lonColumn: e.target.value })} className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500 mb-3">
+                        <option value="" disabled>Select column...</option>
+                        {(configuringChart.selectedDataset.type === 'table' ? configuringChart.selectedDataset.data.columns : configuringChart.selectedDataset.data.columns_mapped).map((c: any) => (
+                           <option key={c.name} value={c.name}>{c.name}</option>
+                        ))}
+                      </select>
+
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Value/Size Field (Numeric)</label>
+                      <select value={configuringChart.valColumn || ''} onChange={(e) => updateChart(configuringChart.id, { valColumn: e.target.value })} className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500 mb-3">
+                        <option value="" disabled>Select column...</option>
+                        {(configuringChart.selectedDataset.type === 'table' ? configuringChart.selectedDataset.data.columns : configuringChart.selectedDataset.data.columns_mapped).map((c: any) => (
+                           <option key={c.name} value={c.name}>{c.name}</option>
+                        ))}
+                      </select>
+
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Label Field (String)</label>
+                      <select value={configuringChart.labelColumn || ''} onChange={(e) => updateChart(configuringChart.id, { labelColumn: e.target.value })} className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500 mb-3">
+                        <option value="">(None)</option>
+                        {(configuringChart.selectedDataset.type === 'table' ? configuringChart.selectedDataset.data.columns : configuringChart.selectedDataset.data.columns_mapped).map((c: any) => (
+                           <option key={c.name} value={c.name}>{c.name}</option>
+                        ))}
+                      </select>
+                      
+                      <label className="flex items-center space-x-2 mt-4 cursor-pointer">
+                        <input type="checkbox" checked={configuringChart.groupBy} onChange={(e) => updateChart(configuringChart.id, { groupBy: e.target.checked })} className="rounded text-green-600 focus:ring-green-500" />
+                        <span className="text-sm font-medium text-gray-700">Aggregate Multiple Points</span>
+                      </label>
+                      {configuringChart.groupBy && (
+                        <select value={configuringChart.aggregation} onChange={(e) => updateChart(configuringChart.id, { aggregation: e.target.value })} className="w-full mt-2 border border-gray-300 rounded-md p-2 text-sm">
+                          <option value="SUM">SUM</option>
+                          <option value="AVG">AVERAGE</option>
+                          <option value="MAX">MAX</option>
+                          <option value="MIN">MIN</option>
+                          <option value="COUNT">COUNT</option>
+                        </select>
+                      )}
                     </div>
                   ) : (
                     <div>
