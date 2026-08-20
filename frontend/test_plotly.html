@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+</head>
+<body>
+  <div id="pie"></div>
+  <div id="treemap"></div>
+  <script>
+    var xValues = ['A', 'B', 'C', 'A'];
+    var yValues = [10, 20, 30, 40];
+    
+    var pieData = [{ type: 'pie', labels: xValues, values: yValues }];
+    Plotly.newPlot('pie', pieData);
+    
+    var treeData = [{
+      type: 'treemap',
+      labels: xValues.map(String),
+      parents: Array(xValues.length).fill(''),
+      values: yValues.map(Number),
+      textinfo: 'label+value+percent parent'
+    }];
+    Plotly.newPlot('treemap', treeData);
+  </script>
+</body>
+</html>

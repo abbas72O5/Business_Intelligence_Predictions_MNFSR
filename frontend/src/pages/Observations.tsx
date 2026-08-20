@@ -363,30 +363,17 @@ export default function Observations() {
   };
 
   const renderPlot = (chart: ChartConfig) => {
-    if (chart.chartData.length === 0) return null;
+    if (!chart.chartData || chart.chartData.length === 0) return null;
 
-    const xValues = chart.chartData.map(d => d[chart.xColumn]);
-    const yValues = chart.chartData.map(d => d[chart.yColumn]);
-
-    let data: any[] = [];
-    let layoutAdditions: any = {};
-
+    // --- MAP LOGIC ---
     if (chart.chartType === 'map') {
-      const latValues = chart.chartData.map(d => Number(d[chart.latColumn || '']) || 0);
-      const lonValues = chart.chartData.map(d => Number(d[chart.lonColumn || '']) || 0);
-
-      const avgLat = latValues.length > 0 ? latValues.reduce((a, b) => a + b, 0) / latValues.length : 30.3753;
-      const avgLon = lonValues.length > 0 ? lonValues.reduce((a, b) => a + b, 0) / lonValues.length : 69.3451;
-
-      console.log("Map Debug: latValues", latValues);
-      console.log("Map Debug: lonValues", lonValues);
-      console.log("Map Debug: avgLat", avgLat, "avgLon", avgLon);
-
-      if (chart.chartData && chart.chartData.length > 0 && chart.chartData[0].map_html) {
+      const valName = chart.valColumn || 'Value';
+      
+      if (chart.chartData[0].map_html) {
         return (
           <div style={{ width: '100%', height: '100%', position: 'relative' }}>
             <div className="absolute top-2 left-1/2 transform -translate-x-1/2 bg-white px-3 py-1 rounded shadow text-sm font-semibold z-[1000] pointer-events-none">
-              {chart.mapType === 'heat' ? 'Heat Map' : 'Bubble Map'} of {chart.valColumn || 'Value'}
+              {chart.mapType === 'heat' ? 'Heat Map' : 'Bubble Map'} of {valName}
             </div>
             <iframe
               title={`map-${chart.id}`}
@@ -398,14 +385,23 @@ export default function Observations() {
         );
       }
       return <div className="flex items-center justify-center h-full text-gray-400">Loading Map...</div>;
-    } else if (chart.chartType === 'bar') {
+    }
+
+    // --- PLOTLY / TABLE LOGIC ---
+    const xValues = chart.chartData.map(d => d[chart.xColumn]);
+    const yValues = chart.chartData.map(d => d[chart.yColumn]);
+
+    let data: any[] = [];
+    let layoutAdditions: any = {};
+
+    if (chart.chartType === 'bar') {
       data = [{ type: 'bar', x: xValues, y: yValues, marker: { color: '#16a34a' } }];
     } else if (chart.chartType === 'line') {
       data = [{ type: 'scatter', mode: 'lines+markers', x: xValues, y: yValues, line: { color: '#16a34a' } }];
     } else if (chart.chartType === 'scatter') {
       data = [{ type: 'scatter', mode: 'markers', x: xValues, y: yValues, marker: { size: 10, color: '#16a34a' } }];
     } else if (chart.chartType === 'pie') {
-      data = [{ type: 'pie', labels: xValues, values: yValues }];
+      data = [{ type: 'pie', labels: xValues, values: yValues.map(Number) }];
     } else if (chart.chartType === 'table') {
       const columns = Object.keys(chart.chartData[0] || {});
       data = [{
@@ -426,9 +422,13 @@ export default function Observations() {
     } else if (chart.chartType === 'heatmap') {
       data = [{ type: 'histogram2d', x: xValues, y: yValues, colorscale: 'Greens' }];
     } else if (chart.chartType === 'treemap') {
+      const uniqueLabels = xValues.map((val, idx) => {
+          const strVal = String(val);
+          return xValues.indexOf(val) === idx ? strVal : `${strVal} (${idx})`;
+      });
       data = [{
         type: 'treemap',
-        labels: xValues.map(String),
+        labels: uniqueLabels,
         parents: Array(xValues.length).fill(""),
         values: yValues.map(Number),
         textinfo: "label+value+percent parent"
@@ -439,11 +439,8 @@ export default function Observations() {
     const actualYLabel = chart.yAxisProps?.label || chart.yColumn || '';
 
     let chartTitle = `${chart.selectedDataset?.data?.filename || chart.selectedDataset?.data?.name || 'Chart'}`;
-    if (chart.chartType !== 'map' && chart.chartType !== 'table') {
+    if (chart.chartType !== 'table') {
         chartTitle += ` - ${chart.groupBy ? `${chart.aggregation}(${actualYLabel})` : actualYLabel} by ${actualXLabel}`;
-    } else if (chart.chartType === 'map') {
-        const valName = chart.valColumn || 'Value';
-        chartTitle += ` - ${chart.mapType === 'heat' ? 'Heat Map' : 'Bubble Map'} of ${valName}`;
     }
 
     let chartLayout: any = {
@@ -464,7 +461,7 @@ export default function Observations() {
       ...layoutAdditions
     };
 
-    if (chart.chartType !== 'map') {
+    if (['bar', 'line', 'scatter', 'heatmap'].includes(chart.chartType)) {
       chartLayout.yaxis = {
         title: chart.groupBy ? `${chart.aggregation}(${actualYLabel})` : actualYLabel,
         ...(chart.yAxisProps?.type === 'Integer' ? { tickformat: 'd' } : {})
@@ -477,7 +474,7 @@ export default function Observations() {
 
     return (
       <Plot
-        key={`${chart.id}-${chart.chartType}-${chart.chartData.length}`}
+        key={`${chart.id}-${chart.chartType}-${chart.chartData ? chart.chartData.length : 0}`}
         data={data}
         layout={chartLayout}
         config={{
@@ -623,7 +620,13 @@ export default function Observations() {
 
                     {/* Chart Area */}
                     <div className="flex-1 w-full h-full relative p-2 pt-8">
-                      {chart.chartData.length === 0 ? (
+                      {error[chart.id] ? (
+                        <div className="flex flex-col items-center justify-center h-full text-red-500 p-4 text-center">
+                          <BarChart2 className="h-12 w-12 mb-2 text-red-200" />
+                          <p className="text-sm font-semibold text-red-600">Generation Failed</p>
+                          <p className="mt-1 text-xs text-red-500 break-words">{error[chart.id]}</p>
+                        </div>
+                      ) : !chart.chartData || chart.chartData.length === 0 ? (
                         <div className="flex flex-col items-center justify-center h-full text-gray-400">
                           <BarChart2 className="h-12 w-12 mb-2 text-gray-200" />
                           <p className="text-sm">Not Configured</p>

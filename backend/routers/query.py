@@ -2,11 +2,12 @@ from fastapi import APIRouter, HTTPException, Depends
 import duckdb
 import os
 import uuid
+import numpy as np
 from datetime import datetime
 
 from database import db
 from models.metadata import SavedModelMetadata
-from models.query import QueryRequest, GenerateRequest, ObservationQueryRequest, SaveModelRequest
+from models.query import QueryRequest, GenerateRequest, ObservationQueryRequest, SaveModelRequest, PredictionQueryRequest
 from routers.auth import get_current_user
 
 router = APIRouter(prefix="/query", tags=["query"])
@@ -227,8 +228,8 @@ async def generate_observation(request: ObservationQueryRequest, current_user = 
                     sql = f"SELECT {lat_cast} as \"{request.lat_column}\", {lon_cast} as \"{request.lon_column}\", {agg_func}({val_cast}) as \"{request.val_column}\", MAX({label_col}) as label FROM '{storage_path}' {where_sql} GROUP BY {lat_cast}, {lon_cast} LIMIT 2000"
                 else:
                     sql = f"SELECT {lat_cast} as \"{request.lat_column}\", {lon_cast} as \"{request.lon_column}\", {val_cast} as \"{request.val_column}\", {label_col} as label FROM '{storage_path}' {where_sql} LIMIT 2000"
-                    
-        elif request.chart_type == "table" and request.table_columns:
+                
+        elif request.chart_type == "table"  and request.table_columns:
             cols_sql = ", ".join([f"\"{c}\"" for c in request.table_columns])
             if request.dataset_type == "model":
                 model_doc = await db.saved_models.find_one({"model_id": request.table_id})
@@ -262,7 +263,11 @@ async def generate_observation(request: ObservationQueryRequest, current_user = 
                 return None
                 
             x_duck = get_duckdb_type(request.x_cast_type) if request.x_cast_type else None
-            if x_duck:
+            
+            # Simplify Casting: If group_by is enabled, use x_column as grouping key without aggressive casting.
+            if request.group_by:
+                x_cast = f"\"{request.x_column}\""
+            elif x_duck:
                 if x_duck == "BIGINT":
                     x_cast = f"TRY_CAST(TRY_CAST({x_cast} AS DOUBLE) AS BIGINT)"
                 else:
@@ -275,13 +280,7 @@ async def generate_observation(request: ObservationQueryRequest, current_user = 
                 else:
                     y_cast = f"TRY_CAST({y_cast} AS {y_duck})"
                     
-            where_clauses = []
-            if x_duck == "BIGINT":
-                where_clauses.append(f"TRY_CAST(\"{request.x_column}\" AS DOUBLE) = CAST(TRY_CAST(\"{request.x_column}\" AS DOUBLE) AS BIGINT)")
-            if y_duck == "BIGINT":
-                where_clauses.append(f"TRY_CAST(\"{request.y_column}\" AS DOUBLE) = CAST(TRY_CAST(\"{request.y_column}\" AS DOUBLE) AS BIGINT)")
-                
-            where_sql = f"WHERE {' AND '.join(where_clauses)}" if where_clauses else ""
+            where_sql = f"WHERE {x_cast} IS NOT NULL AND {y_cast} IS NOT NULL"
             
             if request.dataset_type == "model":
                 model_doc = await db.saved_models.find_one({"model_id": request.table_id})
@@ -298,7 +297,8 @@ async def generate_observation(request: ObservationQueryRequest, current_user = 
                     agg_func = request.aggregation.upper()
                     if agg_func not in ["SUM", "AVG", "COUNT", "MIN", "MAX"]:
                         raise HTTPException(status_code=400, detail="Invalid aggregation function.")
-                    sql = f"SELECT {x_cast} as \"{request.x_column}\", {agg_func}({y_cast}) as \"{request.y_column}\" FROM ({base_sql}) {where_sql} GROUP BY {x_cast} ORDER BY {x_cast} ASC LIMIT 1000"
+                    safe_y = f"TRY_CAST({y_cast} AS DOUBLE)" if agg_func in ["SUM", "AVG"] and not request.y_cast_type else y_cast
+                    sql = f"SELECT {x_cast} as \"{request.x_column}\", {agg_func}({safe_y}) as \"{request.y_column}\" FROM ({base_sql}) {where_sql} GROUP BY {x_cast} ORDER BY {x_cast} ASC LIMIT 1000"
                 else:
                     sql = f"SELECT {x_cast} as \"{request.x_column}\", {y_cast} as \"{request.y_column}\" FROM ({base_sql}) {where_sql} LIMIT 1000"
                     
@@ -314,7 +314,8 @@ async def generate_observation(request: ObservationQueryRequest, current_user = 
                     if agg_func not in ["SUM", "AVG", "COUNT", "MIN", "MAX"]:
                         raise HTTPException(status_code=400, detail="Invalid aggregation function.")
                         
-                    sql = f"SELECT {x_cast} as \"{request.x_column}\", {agg_func}({y_cast}) as \"{request.y_column}\" FROM '{storage_path}' {where_sql} GROUP BY {x_cast} ORDER BY {x_cast} ASC LIMIT 1000"
+                    safe_y = f"TRY_CAST({y_cast} AS DOUBLE)" if agg_func in ["SUM", "AVG"] and not request.y_cast_type else y_cast
+                    sql = f"SELECT {x_cast} as \"{request.x_column}\", {agg_func}({safe_y}) as \"{request.y_column}\" FROM '{storage_path}' {where_sql} GROUP BY {x_cast} ORDER BY {x_cast} ASC LIMIT 1000"
                 else:
                     sql = f"SELECT {x_cast} as \"{request.x_column}\", {y_cast} as \"{request.y_column}\" FROM '{storage_path}' {where_sql} LIMIT 1000"
             
@@ -374,6 +375,18 @@ async def generate_observation(request: ObservationQueryRequest, current_user = 
                     ).add_to(m)
                     
             return [{"map_html": m._repr_html_()}]
+            
+        elif request.chart_type == "table":
+            if df.empty:
+                return []
+            return df.replace({np.nan: None}).to_dict(orient="records")
+            
+        else:
+            if df.empty:
+                return []
+            if request.x_column and request.y_column:
+                df = df.dropna(subset=[request.x_column, request.y_column])
+            return df.replace({np.nan: None}).to_dict(orient="records")
 
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Observation query failed: {str(e)}")
@@ -396,6 +409,101 @@ async def save_model(request: SaveModelRequest, current_user = Depends(get_curre
     model_doc["_id"] = str(result.inserted_id)
     model_doc["id"] = model_doc["_id"]
     return model_doc
+
+@router.post("/predict")
+async def generate_prediction(request: PredictionQueryRequest, current_user = Depends(get_current_user)):
+    try:
+        from prophet import Prophet
+        import pandas as pd
+        import numpy as np
+
+        date_cast = f"\"{request.date_column}\""
+        val_cast = f"\"{request.value_column}\""
+
+        def get_duckdb_type(t):
+            if t == "Integer": return "BIGINT"
+            if t == "Float": return "DOUBLE"
+            if t == "String": return "VARCHAR"
+            if t == "Date": return "TIMESTAMP"
+            return None
+
+        # Ensure Date casting
+        d_duck = get_duckdb_type(request.date_cast_type) if request.date_cast_type else None
+        if d_duck:
+            if d_duck == "BIGINT":
+                date_cast = f"TRY_CAST(TRY_CAST({date_cast} AS DOUBLE) AS BIGINT)"
+            else:
+                date_cast = f"TRY_CAST({date_cast} AS {d_duck})"
+
+        # Ensure Value casting
+        v_duck = get_duckdb_type(request.value_cast_type) if request.value_cast_type else None
+        if v_duck:
+            if v_duck == "BIGINT":
+                val_cast = f"TRY_CAST(TRY_CAST({val_cast} AS DOUBLE) AS BIGINT)"
+            else:
+                val_cast = f"TRY_CAST({val_cast} AS {v_duck})"
+
+        # Prophet needs aggregated values per date to avoid duplicated index issues
+        # We SUM the values grouped by date
+        where_sql = f"WHERE {date_cast} IS NOT NULL AND {val_cast} IS NOT NULL"
+
+        if request.dataset_type == "model":
+            model_doc = await db.saved_models.find_one({"model_id": request.table_id})
+            if not model_doc:
+                raise HTTPException(status_code=404, detail="Model not found.")
+            from models.query import QueryColumn, JoinCondition
+            q_cols = [QueryColumn(**c) for c in model_doc["columns"]]
+            q_joins = [JoinCondition(**j) for j in model_doc["joins"]]
+            base_request = QueryRequest(columns=q_cols, joins=q_joins)
+            base_sql = await build_duckdb_query(base_request, current_user)
+            
+            sql = f"SELECT TRY_CAST({date_cast} AS DATE) as ds, SUM(TRY_CAST({val_cast} AS DOUBLE)) as y FROM ({base_sql}) {where_sql} GROUP BY ds ORDER BY ds ASC"
+        else:
+            file_doc = await db.table_metadata.find_one({"table_id": request.table_id})
+            if not file_doc:
+                raise HTTPException(status_code=404, detail="Table not found.")
+            storage_path = file_doc["storage_path"]
+            
+            sql = f"SELECT TRY_CAST({date_cast} AS DATE) as ds, SUM(TRY_CAST({val_cast} AS DOUBLE)) as y FROM '{storage_path}' {where_sql} GROUP BY ds ORDER BY ds ASC"
+
+        df = duckdb.query(sql).df()
+
+        if len(df) < 2:
+            raise HTTPException(status_code=400, detail="Not enough historical data points to generate a forecast.")
+
+        # Train Prophet
+        m = Prophet(yearly_seasonality=True, weekly_seasonality=False, daily_seasonality=False)
+        m.fit(df)
+
+        # Make Future Dataframe
+        future = m.make_future_dataframe(periods=request.periods, freq=request.freq)
+        forecast = m.predict(future)
+
+        # Combine historical and forecast
+        # We want to return a clean list of objects for Plotly
+        # Format: { ds: string, y: number (actual), yhat: number (forecast), yhat_lower: number, yhat_upper: number, is_prediction: boolean }
+        
+        # Merge actuals (y) into forecast dataframe
+        combined = forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].copy()
+        combined['ds'] = combined['ds'].astype(str) # stringify for json
+        
+        df['ds'] = df['ds'].astype(str)
+        # Left join to bring 'y' (actual values) into the combined df
+        combined = combined.merge(df[['ds', 'y']], on='ds', how='left')
+
+        # Identify which rows are pure predictions (i.e., no historical 'y')
+        # Wait! To make the line continuous, the last historical point MUST also be part of the prediction line.
+        # But we can just use `yhat` as the continuous prediction line for all time, or we can build two distinct traces on frontend.
+        # Let's pass `y` (actuals), `yhat`, `yhat_lower`, `yhat_upper`. 
+        # The frontend will plot `y` as a solid line, and `yhat` where `y` is null as a dotted line.
+        
+        # Replace NaN with None for JSON serialization
+        combined = combined.replace({np.nan: None})
+        
+        return combined.to_dict(orient="records")
+
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Forecast failed: {str(e)}")
 
 @router.get("/saved_models", response_model=list[SavedModelMetadata])
 async def get_saved_models(current_user = Depends(get_current_user)):
