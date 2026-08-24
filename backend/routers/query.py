@@ -264,8 +264,8 @@ async def generate_observation(request: ObservationQueryRequest, current_user = 
                 
             x_duck = get_duckdb_type(request.x_cast_type) if request.x_cast_type else None
             
-            # Simplify Casting: If group_by is enabled, use x_column as grouping key without aggressive casting.
-            if request.group_by:
+            # Simplify Casting: If group_by is enabled, use the grouped column without aggressive casting.
+            if request.group_by and request.group_axis == 'x':
                 x_cast = f"\"{request.x_column}\""
             elif x_duck:
                 if x_duck == "BIGINT":
@@ -274,7 +274,10 @@ async def generate_observation(request: ObservationQueryRequest, current_user = 
                     x_cast = f"TRY_CAST({x_cast} AS {x_duck})"
             
             y_duck = get_duckdb_type(request.y_cast_type) if request.y_cast_type else None
-            if y_duck:
+            
+            if request.group_by and request.group_axis == 'y':
+                y_cast = f"\"{request.y_column}\""
+            elif y_duck:
                 if y_duck == "BIGINT":
                     y_cast = f"TRY_CAST(TRY_CAST({y_cast} AS DOUBLE) AS BIGINT)"
                 else:
@@ -297,8 +300,13 @@ async def generate_observation(request: ObservationQueryRequest, current_user = 
                     agg_func = request.aggregation.upper()
                     if agg_func not in ["SUM", "AVG", "COUNT", "MIN", "MAX"]:
                         raise HTTPException(status_code=400, detail="Invalid aggregation function.")
-                    safe_y = f"TRY_CAST({y_cast} AS DOUBLE)" if agg_func in ["SUM", "AVG"] and not request.y_cast_type else y_cast
-                    sql = f"SELECT {x_cast} as \"{request.x_column}\", {agg_func}({safe_y}) as \"{request.y_column}\" FROM ({base_sql}) {where_sql} GROUP BY {x_cast} ORDER BY {x_cast} ASC LIMIT 1000"
+                    
+                    if request.group_axis == 'y':
+                        safe_x = f"TRY_CAST({x_cast} AS DOUBLE)" if agg_func in ["SUM", "AVG"] and not request.x_cast_type else x_cast
+                        sql = f"SELECT {agg_func}({safe_x}) as \"{request.x_column}\", {y_cast} as \"{request.y_column}\" FROM ({base_sql}) {where_sql} GROUP BY {y_cast} ORDER BY {y_cast} ASC LIMIT 1000"
+                    else:
+                        safe_y = f"TRY_CAST({y_cast} AS DOUBLE)" if agg_func in ["SUM", "AVG"] and not request.y_cast_type else y_cast
+                        sql = f"SELECT {x_cast} as \"{request.x_column}\", {agg_func}({safe_y}) as \"{request.y_column}\" FROM ({base_sql}) {where_sql} GROUP BY {x_cast} ORDER BY {x_cast} ASC LIMIT 1000"
                 else:
                     sql = f"SELECT {x_cast} as \"{request.x_column}\", {y_cast} as \"{request.y_column}\" FROM ({base_sql}) {where_sql} LIMIT 1000"
                     
@@ -314,8 +322,12 @@ async def generate_observation(request: ObservationQueryRequest, current_user = 
                     if agg_func not in ["SUM", "AVG", "COUNT", "MIN", "MAX"]:
                         raise HTTPException(status_code=400, detail="Invalid aggregation function.")
                         
-                    safe_y = f"TRY_CAST({y_cast} AS DOUBLE)" if agg_func in ["SUM", "AVG"] and not request.y_cast_type else y_cast
-                    sql = f"SELECT {x_cast} as \"{request.x_column}\", {agg_func}({safe_y}) as \"{request.y_column}\" FROM '{storage_path}' {where_sql} GROUP BY {x_cast} ORDER BY {x_cast} ASC LIMIT 1000"
+                    if request.group_axis == 'y':
+                        safe_x = f"TRY_CAST({x_cast} AS DOUBLE)" if agg_func in ["SUM", "AVG"] and not request.x_cast_type else x_cast
+                        sql = f"SELECT {agg_func}({safe_x}) as \"{request.x_column}\", {y_cast} as \"{request.y_column}\" FROM '{storage_path}' {where_sql} GROUP BY {y_cast} ORDER BY {y_cast} ASC LIMIT 1000"
+                    else:
+                        safe_y = f"TRY_CAST({y_cast} AS DOUBLE)" if agg_func in ["SUM", "AVG"] and not request.y_cast_type else y_cast
+                        sql = f"SELECT {x_cast} as \"{request.x_column}\", {agg_func}({safe_y}) as \"{request.y_column}\" FROM '{storage_path}' {where_sql} GROUP BY {x_cast} ORDER BY {x_cast} ASC LIMIT 1000"
                 else:
                     sql = f"SELECT {x_cast} as \"{request.x_column}\", {y_cast} as \"{request.y_column}\" FROM '{storage_path}' {where_sql} LIMIT 1000"
             
@@ -497,7 +509,12 @@ async def generate_prediction(request: PredictionQueryRequest, current_user = De
             df['ds'] = pd.to_datetime(df['ds'])
             m = Prophet(yearly_seasonality=True, weekly_seasonality=False, daily_seasonality=False)
             m.fit(df)
-            future = m.make_future_dataframe(periods=request.periods, freq=request.freq)
+            
+            safe_freq = request.freq
+            if safe_freq == 'M': safe_freq = 'ME'
+            if safe_freq == 'Y': safe_freq = 'YE'
+            
+            future = m.make_future_dataframe(periods=request.periods, freq=safe_freq)
             forecast = m.predict(future)
             
             combined = forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].copy()

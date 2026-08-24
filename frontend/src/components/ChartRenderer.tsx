@@ -16,6 +16,7 @@ export interface ChartConfig {
   xAxisProps: { label: string; type: string };
   yAxisProps: { label: string; type: string };
   groupBy: boolean;
+  groupAxis?: 'x' | 'y';
   aggregation: string;
   chartData: any;
   width: number;
@@ -120,7 +121,7 @@ export default function ChartRenderer({ chart, className, overrideWidth, overrid
     width: overrideWidth ? undefined : chart.width,
     height: overrideHeight ? undefined : chart.height,
     autosize: overrideWidth || overrideHeight ? true : false,
-    margin: { l: 50, r: 50, b: 50, t: 50, pad: 4 },
+    margin: { l: 50, r: 50, b: 80, t: 50, pad: 4 },
     paper_bgcolor: 'transparent',
     plot_bgcolor: 'transparent',
     dragmode: 'pan',
@@ -134,14 +135,29 @@ export default function ChartRenderer({ chart, className, overrideWidth, overrid
   };
 
   if (['bar', 'line', 'scatter', 'heatmap'].includes(chart.chartType)) {
-    chartLayout.yaxis = {
-      title: chart.groupBy ? `${chart.aggregation}(${actualYLabel})` : actualYLabel,
-      ...(chart.yAxisProps?.type === 'Integer' ? { tickformat: 'd' } : {})
-    };
-    chartLayout.xaxis = {
-      title: actualXLabel,
-      ...(chart.xAxisProps?.type === 'Integer' ? { tickformat: 'd' } : {})
-    };
+    if (chart.groupBy && chart.groupAxis === 'y') {
+      chartLayout.yaxis = {
+        title: { text: actualYLabel },
+        automargin: true,
+        ...(chart.yAxisProps?.type === 'Integer' ? { tickformat: 'd' } : {})
+      };
+      chartLayout.xaxis = {
+        title: { text: `${chart.aggregation}(${actualXLabel})` },
+        automargin: true,
+        ...(chart.xAxisProps?.type === 'Integer' ? { tickformat: 'd' } : {})
+      };
+    } else {
+      chartLayout.yaxis = {
+        title: { text: chart.groupBy ? `${chart.aggregation}(${actualYLabel})` : actualYLabel },
+        automargin: true,
+        ...(chart.yAxisProps?.type === 'Integer' ? { tickformat: 'd' } : {})
+      };
+      chartLayout.xaxis = {
+        title: { text: actualXLabel },
+        automargin: true,
+        ...(chart.xAxisProps?.type === 'Integer' ? { tickformat: 'd' } : {})
+      };
+    }
   }
 
   return (

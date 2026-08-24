@@ -164,10 +164,11 @@ export default function Observations() {
       yAxisProps: { label: '', type: '' },
       tableColumns: [],
       groupBy: false,
+      groupAxis: 'x',
       aggregation: 'SUM',
       chartData: null,
-      width: 400,
-      height: 300,
+      width: 500,
+      height: 400,
       x: 0,
       y: 0
     };
@@ -243,6 +244,7 @@ export default function Observations() {
         x_cast_type: chart.xAxisProps.type || null,
         y_cast_type: chart.yAxisProps.type || null,
         group_by: chart.groupBy,
+        group_axis: chart.groupAxis || 'x',
         aggregation: chart.groupBy ? chart.aggregation : null
       }, {
         headers: { Authorization: `Bearer ${token}` }
@@ -490,7 +492,7 @@ export default function Observations() {
                           <p className="mt-2 text-xs text-green-600 font-medium">Click to configure</p>
                         </div>
                       ) : (
-                        <ChartRenderer chart={chart} />
+                        <ChartRenderer chart={chart} overrideWidth="100%" overrideHeight="100%" />
                       )}
                     </div>
 
@@ -640,12 +642,12 @@ export default function Observations() {
                         <button onClick={() => updateChart(configuringChart.id, { mapType: 'bubble' })} className={`flex-1 py-1.5 text-xs font-medium border rounded ${configuringChart.mapType === 'bubble' ? 'bg-green-100 border-green-500 text-green-800' : 'bg-gray-50 border-gray-200 text-gray-600'}`}>Bubble Map</button>
                         <button onClick={() => updateChart(configuringChart.id, { mapType: 'heat' })} className={`flex-1 py-1.5 text-xs font-medium border rounded ${configuringChart.mapType === 'heat' ? 'bg-green-100 border-green-500 text-green-800' : 'bg-gray-50 border-gray-200 text-gray-600'}`}>Heat Map</button>
                       </div>
-                      
+
                       <label className="block text-sm font-medium text-gray-700 mb-1">Latitude Field (Numeric)</label>
                       <select value={configuringChart.latColumn || ''} onChange={(e) => updateChart(configuringChart.id, { latColumn: e.target.value })} className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500 mb-3">
                         <option value="" disabled>Select column...</option>
                         {(configuringChart.selectedDataset.type === 'table' ? configuringChart.selectedDataset.data.columns : configuringChart.selectedDataset.data.columns_mapped).map((c: any) => (
-                           <option key={c.name} value={c.name}>{c.name}</option>
+                          <option key={c.name} value={c.name}>{c.name}</option>
                         ))}
                       </select>
 
@@ -653,7 +655,7 @@ export default function Observations() {
                       <select value={configuringChart.lonColumn || ''} onChange={(e) => updateChart(configuringChart.id, { lonColumn: e.target.value })} className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500 mb-3">
                         <option value="" disabled>Select column...</option>
                         {(configuringChart.selectedDataset.type === 'table' ? configuringChart.selectedDataset.data.columns : configuringChart.selectedDataset.data.columns_mapped).map((c: any) => (
-                           <option key={c.name} value={c.name}>{c.name}</option>
+                          <option key={c.name} value={c.name}>{c.name}</option>
                         ))}
                       </select>
 
@@ -661,7 +663,7 @@ export default function Observations() {
                       <select value={configuringChart.valColumn || ''} onChange={(e) => updateChart(configuringChart.id, { valColumn: e.target.value })} className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500 mb-3">
                         <option value="" disabled>Select column...</option>
                         {(configuringChart.selectedDataset.type === 'table' ? configuringChart.selectedDataset.data.columns : configuringChart.selectedDataset.data.columns_mapped).map((c: any) => (
-                           <option key={c.name} value={c.name}>{c.name}</option>
+                          <option key={c.name} value={c.name}>{c.name}</option>
                         ))}
                       </select>
 
@@ -669,10 +671,10 @@ export default function Observations() {
                       <select value={configuringChart.labelColumn || ''} onChange={(e) => updateChart(configuringChart.id, { labelColumn: e.target.value })} className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500 mb-3">
                         <option value="">(None)</option>
                         {(configuringChart.selectedDataset.type === 'table' ? configuringChart.selectedDataset.data.columns : configuringChart.selectedDataset.data.columns_mapped).map((c: any) => (
-                           <option key={c.name} value={c.name}>{c.name}</option>
+                          <option key={c.name} value={c.name}>{c.name}</option>
                         ))}
                       </select>
-                      
+
                       <label className="flex items-center space-x-2 mt-4 cursor-pointer">
                         <input type="checkbox" checked={configuringChart.groupBy} onChange={(e) => updateChart(configuringChart.id, { groupBy: e.target.checked })} className="rounded text-green-600 focus:ring-green-500" />
                         <span className="text-sm font-medium text-gray-700">Aggregate Multiple Points</span>
@@ -773,7 +775,7 @@ export default function Observations() {
                     <div className="pt-4 border-t border-gray-200">
                       <div className="flex items-center justify-between mb-3">
                         <label className="text-sm font-medium text-gray-700 flex items-center">
-                          <Filter className="h-4 w-4 mr-1" /> Group By X-Axis
+                          <Filter className="h-4 w-4 mr-1" /> Group By
                         </label>
                         <input
                           type="checkbox"
@@ -789,13 +791,23 @@ export default function Observations() {
                           <select
                             value={configuringChart.aggregation}
                             onChange={(e) => updateChart(configuringChart.id, { aggregation: e.target.value })}
-                            className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500"
+                            className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500 mb-3"
                           >
                             <option value="SUM">Sum (Total)</option>
                             <option value="AVG">Average</option>
                             <option value="COUNT">Count</option>
                             <option value="MIN">Minimum</option>
                             <option value="MAX">Maximum</option>
+                          </select>
+
+                          <label className="block text-sm font-medium text-gray-700 mb-1">Grouping Axis</label>
+                          <select
+                            value={configuringChart.groupAxis || 'x'}
+                            onChange={(e) => updateChart(configuringChart.id, { groupAxis: e.target.value as 'x' | 'y' })}
+                            className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500"
+                          >
+                            <option value="x">X-Axis</option>
+                            <option value="y">Y-Axis</option>
                           </select>
                         </div>
                       )}

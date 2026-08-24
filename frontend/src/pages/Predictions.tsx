@@ -80,7 +80,7 @@ export default function Predictions() {
           configTab: 'time_series',
           predictionConfig: {
             periods: 12,
-            freq: 'M',
+            freq: 'ME',
             dateCol: chart.xColumn || '',
             valCol: chart.yColumn || chart.valColumn || ''
           },
@@ -377,18 +377,18 @@ export default function Predictions() {
                                     className="w-full bg-gray-50 border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500"
                                   >
                                     <option value="D">Days</option>
-                                    <option value="M">Months</option>
-                                    <option value="Y">Years</option>
+                                    <option value="ME">Months</option>
+                                    <option value="YE">Years</option>
                                   </select>
                                 </div>
                               )}
                             </div>
-                            
+
                             {item.error && (
                               <div className="text-red-600 text-sm mt-2">{item.error}</div>
                             )}
                           </div>
-                          
+
                           <button
                             onClick={() => handleGenerateForecast(item)}
                             disabled={item.loading || !item.predictionConfig.dateCol || !item.predictionConfig.valCol}

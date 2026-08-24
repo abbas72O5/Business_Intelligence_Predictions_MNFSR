@@ -33,6 +33,7 @@ class ObservationQueryRequest(BaseModel):
     map_type: Optional[str] = "bubble"
     table_columns: Optional[List[str]] = None
     group_by: bool = False
+    group_axis: Optional[str] = "x"
     aggregation: Optional[str] = None
     x_cast_type: Optional[str] = None
     y_cast_type: Optional[str] = None
@@ -46,6 +47,6 @@ class PredictionQueryRequest(BaseModel):
     x_column: str
     value_column: str
     periods: int = 12
-    freq: str = "M" # 'D', 'M', 'Y'
+    freq: str = "ME" # 'D', 'ME', 'YE'
     x_cast_type: Optional[str] = None
     value_cast_type: Optional[str] = None
