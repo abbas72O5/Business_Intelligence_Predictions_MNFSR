@@ -463,6 +463,21 @@ async def generate_prediction(request: PredictionQueryRequest, current_user = De
 
         where_sql = f"WHERE {x_cast} IS NOT NULL AND {val_cast} IS NOT NULL"
 
+        select_cols = []
+        if request.prediction_mode == "snapshot" and request.grouping_columns:
+            for g in request.grouping_columns:
+                select_cols.append(f'"{g}"')
+        select_cols.append(f"{x_cast} as ds")
+        select_cols.append(f"SUM(TRY_CAST({val_cast} AS DOUBLE)) as y")
+        select_clause = ", ".join(select_cols)
+
+        group_by_cols = []
+        if request.prediction_mode == "snapshot" and request.grouping_columns:
+            for g in request.grouping_columns:
+                group_by_cols.append(f'"{g}"')
+        group_by_cols.append("ds")
+        group_by_clause = ", ".join(group_by_cols)
+
         if request.dataset_type == "model":
             model_doc = await db.saved_models.find_one({"model_id": request.table_id})
             if not model_doc:
@@ -473,20 +488,69 @@ async def generate_prediction(request: PredictionQueryRequest, current_user = De
             base_request = QueryRequest(columns=q_cols, joins=q_joins)
             base_sql = await build_duckdb_query(base_request, current_user)
             
-            sql = f"SELECT {x_cast} as ds, SUM(TRY_CAST({val_cast} AS DOUBLE)) as y FROM ({base_sql}) {where_sql} GROUP BY ds ORDER BY ds ASC"
+            sql = f"SELECT {select_clause} FROM ({base_sql}) {where_sql} GROUP BY {group_by_clause} ORDER BY ds ASC"
         else:
             file_doc = await db.table_metadata.find_one({"table_id": request.table_id})
             if not file_doc:
                 raise HTTPException(status_code=404, detail="Table not found.")
             storage_path = file_doc["storage_path"]
             
-            sql = f"SELECT {x_cast} as ds, SUM(TRY_CAST({val_cast} AS DOUBLE)) as y FROM '{storage_path}' {where_sql} GROUP BY ds ORDER BY ds ASC"
+            sql = f"SELECT {select_clause} FROM '{storage_path}' {where_sql} GROUP BY {group_by_clause} ORDER BY ds ASC"
 
         df = duckdb.query(sql).df()
 
         if len(df) < 2:
             raise HTTPException(status_code=400, detail="Not enough historical data points to generate a forecast.")
             
+        if request.prediction_mode == "snapshot":
+            # SNAPSHOT MODE: Train a model per group and predict future state
+            try:
+                df['ds'] = pd.to_numeric(df['ds'])
+            except:
+                raise HTTPException(status_code=400, detail="For snapshot forecasts, the timeline column must be numeric.")
+
+            records = []
+            grouping_cols = request.grouping_columns or []
+            
+            if grouping_cols:
+                grouped = df.groupby(grouping_cols)
+            else:
+                grouped = [((), df)]
+                
+            for name, group in grouped:
+                group = group.sort_values(by='ds').reset_index(drop=True)
+                if len(group) < 2:
+                    continue
+                
+                X = group[['ds']].values
+                y_vals = group['y'].values
+                
+                model = LinearRegression()
+                model.fit(X, y_vals)
+                
+                step = 1
+                if len(group) > 1:
+                    step = (group['ds'].max() - group['ds'].min()) / (len(group) - 1)
+                    if step == 0: step = 1
+                
+                last_x = group['ds'].max()
+                future_x = last_x + (request.periods * step)
+                yhat_future = model.predict(np.array([[future_x]]))[0]
+                
+                record = {}
+                if grouping_cols:
+                    if isinstance(name, tuple):
+                        for i, col in enumerate(grouping_cols):
+                            record[col] = name[i]
+                    else:
+                        record[grouping_cols[0]] = name
+                        
+                record[request.value_column] = float(yhat_future)
+                record[request.x_column] = float(future_x)
+                records.append(record)
+                
+            return records
+
         # Detect numeric if not already passed in x_cast_type
         if not is_numeric:
             if pd.api.types.is_numeric_dtype(df['ds']):

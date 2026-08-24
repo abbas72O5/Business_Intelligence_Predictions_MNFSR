@@ -50,3 +50,8 @@ class PredictionQueryRequest(BaseModel):
     freq: str = "ME" # 'D', 'ME', 'YE'
     x_cast_type: Optional[str] = None
     value_cast_type: Optional[str] = None
+    
+    # Universal Predictions
+    chart_type: str = "line"
+    grouping_columns: Optional[List[str]] = None
+    prediction_mode: str = "trajectory" # 'trajectory' or 'snapshot'

@@ -32,12 +32,59 @@ interface CanvasItem {
 
 export default function Predictions() {
   const { token } = useAuth();
-  const [dashboards, setDashboards] = useState<any[]>([]);
-  const [selectedDashboardId, setSelectedDashboardId] = useState<string>('');
+  const loadState = (key: string, defaultVal: any) => {
+    try {
+      const v = localStorage.getItem(key);
+      return v ? JSON.parse(v) : defaultVal;
+    } catch {
+      return defaultVal;
+    }
+  };
 
-  const [canvasVisuals, setCanvasVisuals] = useState<CanvasItem[]>([]);
+  const [dashboards, setDashboards] = useState<any[]>([]);
+  const [selectedDashboardId, setSelectedDashboardId] = useState<string>(() => {
+    const saved = localStorage.getItem('pred_selected_dashboard');
+    return saved || '';
+  });
+
+  const [canvasVisuals, setCanvasVisuals] = useState<CanvasItem[]>(() => loadState('pred_canvas', []));
+
+  useEffect(() => {
+    localStorage.setItem('pred_canvas', JSON.stringify(canvasVisuals));
+  }, [canvasVisuals]);
+
+  useEffect(() => {
+    localStorage.setItem('pred_selected_dashboard', selectedDashboardId);
+  }, [selectedDashboardId]);
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  // Resizing state
+  const [resizingItemId, setResizingItemId] = useState<string | null>(null);
+  const [startSize, setStartSize] = useState({ w: 0, h: 0, x: 0, y: 0 });
+
+  useEffect(() => {
+    if (!resizingItemId) return;
+    const item = canvasVisuals.find(c => c.id === resizingItemId);
+    if (!item) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const dx = e.clientX - startSize.x;
+      const dy = e.clientY - startSize.y;
+      const newWidth = Math.max(300, startSize.w + dx);
+      const newHeight = Math.max(300, startSize.h + dy);
+      updateCanvasItem(resizingItemId, { chart: { ...item.chart, width: newWidth, height: newHeight } });
+      window.dispatchEvent(new Event('resize')); 
+    };
+    const handleMouseUp = () => setResizingItemId(null);
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [resizingItemId, startSize, canvasVisuals]);
 
   useEffect(() => {
     const fetchDashboards = async () => {
@@ -136,6 +183,19 @@ export default function Predictions() {
       if (vCol) vCastType = vCol.type;
     }
 
+    let predictionMode = 'trajectory';
+    let groupingColumns: string[] = [];
+
+    if (item.chart.chartType === 'map') {
+      predictionMode = 'snapshot';
+      groupingColumns = [item.chart.latColumn, item.chart.lonColumn].filter(Boolean) as string[];
+    } else if (['bar', 'pie', 'treemap', 'scatter'].includes(item.chart.chartType)) {
+      if (item.chart.xColumn !== item.predictionConfig.dateCol) {
+        predictionMode = 'snapshot';
+        groupingColumns = [item.chart.xColumn].filter(Boolean) as string[];
+      }
+    }
+
     try {
       const res = await axios.post('http://localhost:8000/query/predict', {
         table_id: dataId,
@@ -145,7 +205,10 @@ export default function Predictions() {
         periods: item.predictionConfig.periods,
         freq: item.predictionConfig.freq,
         x_cast_type: dCastType,
-        value_cast_type: vCastType
+        value_cast_type: vCastType,
+        chart_type: item.chart.chartType,
+        grouping_columns: groupingColumns,
+        prediction_mode: predictionMode
       }, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -164,6 +227,48 @@ export default function Predictions() {
   const renderForecast = (item: CanvasItem) => {
     if (!item.predictionData || item.predictionData.length === 0) return null;
     const { predictionData, predictionConfig } = item;
+    
+    // Check if this was a snapshot prediction (first object has the grouping columns instead of just ds/y/yhat)
+    const isSnapshot = predictionData.length > 0 && !('yhat_upper' in predictionData[0]);
+
+    if (isSnapshot) {
+      // Map the prediction data directly back into the original chart's format!
+      const updatedChart = { ...item.chart, chartData: predictionData };
+      return (
+        <div className="w-full h-full relative flex flex-col pt-8">
+          <div className="absolute top-1 left-2 bg-yellow-100 text-yellow-800 text-[10px] font-bold px-2 py-0.5 rounded shadow-sm border border-yellow-200 z-10 flex items-center">
+            <LineChart className="w-3 h-3 mr-1" />
+            Forecast Snapshot (+{predictionConfig.periods} periods)
+          </div>
+          <ChartRenderer chart={updatedChart} overrideWidth="100%" overrideHeight="100%" />
+        </div>
+      );
+    }
+
+    // Trajectory Mode
+    // If the original chart is NOT a line chart, user expects it to remain as a bar/pie/scatter etc.
+    if (item.chart.chartType !== 'line') {
+      const mappedData = predictionData.map(d => ({
+        ...d,
+        [item.chart.xColumn]: d.ds,
+        [item.chart.yColumn]: d.y !== null ? d.y : d.yhat,
+        // Add a visual indicator field just in case
+        _is_forecast: d.y === null
+      }));
+      
+      const updatedChart = { ...item.chart, chartData: mappedData };
+      return (
+        <div className="w-full h-full relative flex flex-col pt-8">
+          <div className="absolute top-1 left-2 bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded shadow-sm border border-blue-200 z-10 flex items-center">
+            <LineChart className="w-3 h-3 mr-1" />
+            Trajectory (+{predictionConfig.periods} periods)
+          </div>
+          <ChartRenderer chart={updatedChart} overrideWidth="100%" overrideHeight="100%" />
+        </div>
+      );
+    }
+
+    // If it was originally a line chart, render the advanced Plot with confidence intervals
     const ds = predictionData.map(d => d.ds);
     const y_actual = predictionData.map(d => d.y);
     const yhat = predictionData.map(d => d.yhat);
@@ -281,12 +386,16 @@ export default function Predictions() {
               </p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+            <div className="flex flex-wrap gap-6 items-start pb-8">
               {canvasVisuals.map((item) => {
                 const cols = getColumns(item.chart);
 
                 return (
-                  <div key={item.id} className="bg-white rounded-xl shadow-md border border-gray-200 flex flex-col overflow-hidden">
+                  <div 
+                    key={item.id} 
+                    className="bg-white rounded-xl shadow-md border border-gray-200 flex flex-col overflow-hidden relative group"
+                    style={{ width: item.chart.width || 500, height: item.chart.height || 400 }}
+                  >
                     <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex justify-between items-center">
                       <h3 className="font-semibold text-gray-800 text-sm truncate pr-4">
                         {item.chart.selectedDataset?.data?.filename || item.chart.selectedDataset?.data?.name || 'Chart'}
@@ -308,7 +417,7 @@ export default function Predictions() {
                       </div>
                     </div>
 
-                    <div className="p-4 w-full h-[350px] relative">
+                    <div className="p-4 w-full flex-1 h-full relative">
                       {item.isConfiguring ? (
                         <div className="h-full flex flex-col max-w-md mx-auto space-y-4 animate-in fade-in pt-2">
                           {/* Tabs */}
@@ -411,6 +520,22 @@ export default function Predictions() {
                         </div>
                       )}
                     </div>
+                    
+                    {/* Resize Handle */}
+                    <div
+                      className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize z-20 opacity-0 group-hover:opacity-100"
+                      onMouseDown={(e) => {
+                        e.stopPropagation();
+                        e.preventDefault();
+                        setResizingItemId(item.id);
+                        setStartSize({
+                          w: item.chart.width || 500,
+                          h: item.chart.height || 400,
+                          x: e.clientX,
+                          y: e.clientY
+                        });
+                      }}
+                    />
                   </div>
                 );
               })}

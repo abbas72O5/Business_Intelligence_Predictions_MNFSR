@@ -63,18 +63,21 @@ export default function ChartRenderer({ chart, className, overrideWidth, overrid
   // --- PLOTLY / TABLE LOGIC ---
   const xValues = chart.chartData.map((d: any) => d[chart.xColumn]);
   const yValues = chart.chartData.map((d: any) => d[chart.yColumn]);
+  
+  const hasForecast = chart.chartData.some((d: any) => d._is_forecast);
+  const colors = chart.chartData.map((d: any) => d._is_forecast ? '#f59e0b' : '#16a34a');
 
   let data: any[] = [];
   let layoutAdditions: any = {};
 
   if (chart.chartType === 'bar') {
-    data = [{ type: 'bar', x: xValues, y: yValues, marker: { color: '#16a34a' } }];
+    data = [{ type: 'bar', x: xValues, y: yValues, marker: { color: hasForecast ? colors : '#16a34a' } }];
   } else if (chart.chartType === 'line') {
     data = [{ type: 'scatter', mode: 'lines+markers', x: xValues, y: yValues, line: { color: '#16a34a' } }];
   } else if (chart.chartType === 'scatter') {
-    data = [{ type: 'scatter', mode: 'markers', x: xValues, y: yValues, marker: { size: 10, color: '#16a34a' } }];
+    data = [{ type: 'scatter', mode: 'markers', x: xValues, y: yValues, marker: { size: 10, color: hasForecast ? colors : '#16a34a' } }];
   } else if (chart.chartType === 'pie') {
-    data = [{ type: 'pie', labels: xValues, values: yValues.map(Number) }];
+    data = [{ type: 'pie', labels: xValues, values: yValues.map(Number), marker: hasForecast ? { colors: colors } : undefined }];
   } else if (chart.chartType === 'table') {
     const columns = Object.keys(chart.chartData[0] || {});
     data = [{
