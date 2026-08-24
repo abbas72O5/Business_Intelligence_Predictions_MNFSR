@@ -50,3 +50,14 @@ A comprehensive Business Intelligence and Analytics platform designed for minist
 - **Multi-Tenant Data Siloing:**
   - **Owner-Based Isolation:** Implemented strict query filtering across the backend where file metadata, analytical models, and datasets are isolated directly by the `uploaded_by` or `created_by` user identifier.
   - **Departmental Boundaries:** Ensures users can only query, visualize, and construct predictive relationships on data explicitly owned by or shared within their verified administrative boundary.
+
+- **Advanced Predictive Analytics (Machine Learning):**
+  - **Hybrid Modeling Engine:** Integrated Meta's `prophet` library for highly accurate time-series forecasting (with seasonality and confidence intervals) and `scikit-learn` for lightning-fast Linear Regression on numeric distributions.
+  - **Drag-and-Drop Forecasting:** Built a dedicated Predictions workspace where users can drag their pre-configured visuals out of a "Bin", drop them onto a resizable forecasting canvas, and run future projections with a single click.
+  - **Universal "Snapshot" Projections:** Groundbreaking capability to forecast non-timeline structural charts (like Geographic Maps or Categorical Bar Charts). The backend automatically isolates historical data into hundreds of parallel groupings, trains independent models for every unique category/coordinate, and reconstructs a "Future Snapshot" of the original visual layout.
+  - **Native Visual Stitching:** Intelligently maps forecasted trajectory outputs back into the original chart configurations, appending future bars or scatter points directly onto the historical visualizations with distinct color coding (e.g., historical green vs predicted orange).
+  - **Session Persistence:** Built-in `localStorage` synchronization that ensures users never lose complex prediction workspace configurations when swapping tabs or reloading the application.
+
+- **Polished UX & Visualization Improvements:**
+  - **Axis Grouping Flexibility:** Support for grouping data aggressively by either X or Y axis depending on chart type, applying user-selected SQL aggregation functions (`SUM`, `AVG`, `COUNT`), and dynamically generating appropriate axis titles like `SUM(Students)`.
+  - **Responsive Plotly Overhauls:** Engineered Plotly to utilize reactive `automargin` mechanics, completely resolving layout overlapping issues by dynamically adjusting chart bounding boxes based on the length and rotation of data labels.
