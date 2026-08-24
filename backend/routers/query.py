@@ -416,8 +416,9 @@ async def generate_prediction(request: PredictionQueryRequest, current_user = De
         from prophet import Prophet
         import pandas as pd
         import numpy as np
+        from sklearn.linear_model import LinearRegression
 
-        date_cast = f"\"{request.date_column}\""
+        x_cast = f"\"{request.x_column}\""
         val_cast = f"\"{request.value_column}\""
 
         def get_duckdb_type(t):
@@ -427,13 +428,18 @@ async def generate_prediction(request: PredictionQueryRequest, current_user = De
             if t == "Date": return "TIMESTAMP"
             return None
 
-        # Ensure Date casting
-        d_duck = get_duckdb_type(request.date_cast_type) if request.date_cast_type else None
-        if d_duck:
-            if d_duck == "BIGINT":
-                date_cast = f"TRY_CAST(TRY_CAST({date_cast} AS DOUBLE) AS BIGINT)"
+        # Ensure X casting
+        x_duck = get_duckdb_type(request.x_cast_type) if request.x_cast_type else None
+        
+        is_numeric = False
+        if x_duck in ("BIGINT", "DOUBLE"):
+            is_numeric = True
+        
+        if x_duck:
+            if x_duck == "BIGINT":
+                x_cast = f"TRY_CAST(TRY_CAST({x_cast} AS DOUBLE) AS BIGINT)"
             else:
-                date_cast = f"TRY_CAST({date_cast} AS {d_duck})"
+                x_cast = f"TRY_CAST({x_cast} AS {x_duck})"
 
         # Ensure Value casting
         v_duck = get_duckdb_type(request.value_cast_type) if request.value_cast_type else None
@@ -443,9 +449,7 @@ async def generate_prediction(request: PredictionQueryRequest, current_user = De
             else:
                 val_cast = f"TRY_CAST({val_cast} AS {v_duck})"
 
-        # Prophet needs aggregated values per date to avoid duplicated index issues
-        # We SUM the values grouped by date
-        where_sql = f"WHERE {date_cast} IS NOT NULL AND {val_cast} IS NOT NULL"
+        where_sql = f"WHERE {x_cast} IS NOT NULL AND {val_cast} IS NOT NULL"
 
         if request.dataset_type == "model":
             model_doc = await db.saved_models.find_one({"model_id": request.table_id})
@@ -457,50 +461,103 @@ async def generate_prediction(request: PredictionQueryRequest, current_user = De
             base_request = QueryRequest(columns=q_cols, joins=q_joins)
             base_sql = await build_duckdb_query(base_request, current_user)
             
-            sql = f"SELECT TRY_CAST({date_cast} AS DATE) as ds, SUM(TRY_CAST({val_cast} AS DOUBLE)) as y FROM ({base_sql}) {where_sql} GROUP BY ds ORDER BY ds ASC"
+            sql = f"SELECT {x_cast} as ds, SUM(TRY_CAST({val_cast} AS DOUBLE)) as y FROM ({base_sql}) {where_sql} GROUP BY ds ORDER BY ds ASC"
         else:
             file_doc = await db.table_metadata.find_one({"table_id": request.table_id})
             if not file_doc:
                 raise HTTPException(status_code=404, detail="Table not found.")
             storage_path = file_doc["storage_path"]
             
-            sql = f"SELECT TRY_CAST({date_cast} AS DATE) as ds, SUM(TRY_CAST({val_cast} AS DOUBLE)) as y FROM '{storage_path}' {where_sql} GROUP BY ds ORDER BY ds ASC"
+            sql = f"SELECT {x_cast} as ds, SUM(TRY_CAST({val_cast} AS DOUBLE)) as y FROM '{storage_path}' {where_sql} GROUP BY ds ORDER BY ds ASC"
 
         df = duckdb.query(sql).df()
 
         if len(df) < 2:
             raise HTTPException(status_code=400, detail="Not enough historical data points to generate a forecast.")
+            
+        # Detect numeric if not already passed in x_cast_type
+        if not is_numeric:
+            if pd.api.types.is_numeric_dtype(df['ds']):
+                is_numeric = True
+            elif pd.api.types.is_datetime64_any_dtype(df['ds']):
+                is_numeric = False
+            else:
+                try:
+                    pd.to_datetime(df['ds'])
+                    is_numeric = False
+                except:
+                    try:
+                        df['ds'] = pd.to_numeric(df['ds'])
+                        is_numeric = True
+                    except:
+                        raise HTTPException(status_code=400, detail="X-axis must be numeric or datetime.")
 
-        # Train Prophet
-        m = Prophet(yearly_seasonality=True, weekly_seasonality=False, daily_seasonality=False)
-        m.fit(df)
-
-        # Make Future Dataframe
-        future = m.make_future_dataframe(periods=request.periods, freq=request.freq)
-        forecast = m.predict(future)
-
-        # Combine historical and forecast
-        # We want to return a clean list of objects for Plotly
-        # Format: { ds: string, y: number (actual), yhat: number (forecast), yhat_lower: number, yhat_upper: number, is_prediction: boolean }
-        
-        # Merge actuals (y) into forecast dataframe
-        combined = forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].copy()
-        combined['ds'] = combined['ds'].astype(str) # stringify for json
-        
-        df['ds'] = df['ds'].astype(str)
-        # Left join to bring 'y' (actual values) into the combined df
-        combined = combined.merge(df[['ds', 'y']], on='ds', how='left')
-
-        # Identify which rows are pure predictions (i.e., no historical 'y')
-        # Wait! To make the line continuous, the last historical point MUST also be part of the prediction line.
-        # But we can just use `yhat` as the continuous prediction line for all time, or we can build two distinct traces on frontend.
-        # Let's pass `y` (actuals), `yhat`, `yhat_lower`, `yhat_upper`. 
-        # The frontend will plot `y` as a solid line, and `yhat` where `y` is null as a dotted line.
-        
-        # Replace NaN with None for JSON serialization
-        combined = combined.replace({np.nan: None})
-        
-        return combined.to_dict(orient="records")
+        if not is_numeric:
+            # TIME SERIES (Prophet)
+            df['ds'] = pd.to_datetime(df['ds'])
+            m = Prophet(yearly_seasonality=True, weekly_seasonality=False, daily_seasonality=False)
+            m.fit(df)
+            future = m.make_future_dataframe(periods=request.periods, freq=request.freq)
+            forecast = m.predict(future)
+            
+            combined = forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].copy()
+            combined['ds'] = combined['ds'].astype(str)
+            df['ds'] = df['ds'].astype(str)
+            combined = combined.merge(df[['ds', 'y']], on='ds', how='left')
+            combined = combined.replace({np.nan: None})
+            return combined.to_dict(orient="records")
+            
+        else:
+            # NUMERIC (Linear Regression)
+            df['ds'] = pd.to_numeric(df['ds'])
+            df = df.sort_values(by='ds').reset_index(drop=True)
+            
+            X = df[['ds']].values
+            y = df['y'].values
+            
+            model = LinearRegression()
+            model.fit(X, y)
+            
+            # Predict historical
+            yhat_historical = model.predict(X)
+            
+            # Generate future X
+            step = 1
+            if len(df) > 1:
+                step = (df['ds'].max() - df['ds'].min()) / (len(df) - 1)
+                if step == 0: step = 1
+            
+            last_x = df['ds'].max()
+            future_x = [last_x + (i * step) for i in range(1, request.periods + 1)]
+            X_future = np.array(future_x).reshape(-1, 1)
+            yhat_future = model.predict(X_future)
+            
+            # Calculate Standard Error of the Estimate for confidence interval
+            residuals = y - yhat_historical
+            sse = np.sum(residuals**2)
+            n = len(df)
+            se = np.sqrt(sse / (n - 2)) if n > 2 else 0
+            
+            # Combine
+            records = []
+            for i in range(len(df)):
+                records.append({
+                    "ds": float(df['ds'].iloc[i]),
+                    "y": float(df['y'].iloc[i]),
+                    "yhat": float(yhat_historical[i]),
+                    "yhat_lower": float(yhat_historical[i] - 1.96 * se),
+                    "yhat_upper": float(yhat_historical[i] + 1.96 * se)
+                })
+            for i in range(len(future_x)):
+                records.append({
+                    "ds": float(future_x[i]),
+                    "y": None,
+                    "yhat": float(yhat_future[i]),
+                    "yhat_lower": float(yhat_future[i] - 1.96 * se),
+                    "yhat_upper": float(yhat_future[i] + 1.96 * se)
+                })
+                
+            return records
 
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Forecast failed: {str(e)}")

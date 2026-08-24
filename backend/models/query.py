@@ -43,9 +43,9 @@ class SaveModelRequest(QueryRequest):
 class PredictionQueryRequest(BaseModel):
     table_id: str
     dataset_type: str = "table"
-    date_column: str
+    x_column: str
     value_column: str
     periods: int = 12
     freq: str = "M" # 'D', 'M', 'Y'
-    date_cast_type: Optional[str] = None
+    x_cast_type: Optional[str] = None
     value_cast_type: Optional[str] = None
