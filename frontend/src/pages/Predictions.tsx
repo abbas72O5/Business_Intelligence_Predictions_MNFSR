@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { LineChart, LayoutDashboard, PanelRightOpen, X, GripVertical, Trash2, Layout, Loader2 } from 'lucide-react';
+import { LineChart, LayoutDashboard, PanelRightOpen, X, GripVertical, Trash2, Layout, Loader2, Save, Download, FolderOpen } from 'lucide-react';
 import ChartRenderer from '../components/ChartRenderer';
 import type { ChartConfig } from '../components/ChartRenderer';
 import { useAuth } from '../context/AuthContext';
 import Plot from 'react-plotly.js';
+import { toPng, toJpeg } from 'html-to-image';
+import { jsPDF } from 'jspdf';
 
 interface PredictionData {
   ds: string;
@@ -62,6 +64,26 @@ export default function Predictions() {
   }, [selectedDashboardId]);
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarWidth, setSidebarWidth] = useState(384);
+  const [isResizingSidebar, setIsResizingSidebar] = useState(false);
+
+  // Resizing sidebar state
+  useEffect(() => {
+    if (!isResizingSidebar) return;
+    const handleMouseMove = (e: MouseEvent) => {
+      // Calculate width based on distance from right edge of window
+      const newWidth = Math.max(250, Math.min(600, window.innerWidth - e.clientX));
+      setSidebarWidth(newWidth);
+    };
+    const handleMouseUp = () => setIsResizingSidebar(false);
+
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+    return () => {
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [isResizingSidebar]);
 
   // Resizing state
   const [resizingItemId, setResizingItemId] = useState<string | null>(null);
@@ -93,7 +115,7 @@ export default function Predictions() {
   useEffect(() => {
     const fetchDashboards = async () => {
       try {
-        const res = await axios.get('http://localhost:8000/dashboards/', {
+        const res = await axios.get('http://localhost:8000/dashboards/?type=observation', {
           headers: { Authorization: `Bearer ${token}` }
         });
         setDashboards(res.data);
@@ -103,6 +125,92 @@ export default function Predictions() {
     };
     if (token) fetchDashboards();
   }, [token]);
+
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [dashboardName, setDashboardName] = useState('');
+  const [showLoadModal, setShowLoadModal] = useState(false);
+  const [savedDashboards, setSavedDashboards] = useState<any[]>([]);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [toastMessage, setToastMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
+
+  const showToast = (text: string, type: 'success' | 'error' = 'success') => {
+    setToastMessage({ text, type });
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const saveDashboard = async () => {
+    if (!dashboardName) return;
+    try {
+      await axios.post('http://localhost:8000/dashboards/', {
+        name: dashboardName,
+        type: 'prediction',
+        charts: canvasVisuals
+      }, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      setShowSaveModal(false);
+      setDashboardName('');
+      showToast("Prediction Dashboard saved successfully!");
+    } catch (err) {
+      console.error(err);
+      showToast("Failed to save dashboard.", "error");
+    }
+  };
+
+  const openLoadModal = async () => {
+    try {
+      const response = await axios.get('http://localhost:8000/dashboards/?type=prediction', {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      setSavedDashboards(response.data);
+      setShowLoadModal(true);
+    } catch (err) {
+      console.error(err);
+      showToast("Failed to fetch prediction dashboards.", "error");
+    }
+  };
+
+  const loadDashboard = async (id: string) => {
+    try {
+      const response = await axios.get(`http://localhost:8000/dashboards/${id}`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+      });
+      setCanvasVisuals(response.data.charts);
+      setShowLoadModal(false);
+      showToast("Dashboard loaded successfully!");
+    } catch (err) {
+      console.error(err);
+      showToast("Failed to load dashboard.", "error");
+    }
+  };
+
+  const handleExportDashboard = async (format: 'png' | 'jpeg' | 'pdf') => {
+    setShowExportMenu(false);
+    const dashboardEl = document.getElementById('prediction-canvas');
+    if (!dashboardEl) return;
+
+    try {
+      const options = { backgroundColor: '#f9fafb', pixelRatio: 2 };
+      if (format === 'pdf') {
+        const dataUrl = await toPng(dashboardEl, options);
+        const pdf = new jsPDF({
+          orientation: dashboardEl.clientWidth > dashboardEl.clientHeight ? 'l' : 'p',
+          unit: 'px',
+          format: [dashboardEl.clientWidth, dashboardEl.clientHeight]
+        });
+        pdf.addImage(dataUrl, 'PNG', 0, 0, dashboardEl.clientWidth, dashboardEl.clientHeight);
+        pdf.save('prediction-export.pdf');
+      } else {
+        const dataUrl = format === 'png' ? await toPng(dashboardEl, options) : await toJpeg(dashboardEl, options);
+        const link = document.createElement('a');
+        link.download = `prediction-export.${format}`;
+        link.href = dataUrl;
+        link.click();
+      }
+    } catch (err) {
+      console.error("Export failed:", err);
+    }
+  };
 
   const selectedDashboard = dashboards.find(d => d.dashboard_id === selectedDashboardId);
   const sidebarCharts: ChartConfig[] = selectedDashboard ? selectedDashboard.charts : [];
@@ -399,9 +507,33 @@ export default function Predictions() {
               <p className="text-sm text-gray-500">Drag visuals from your saved dashboards to configure forecasts.</p>
             </div>
           </div>
+
+          <div className="flex items-center space-x-2">
+            <button onClick={() => setShowSaveModal(true)} className="flex items-center px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50">
+              <Save className="w-4 h-4 mr-2" /> Save
+            </button>
+            <button onClick={openLoadModal} className="flex items-center px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50">
+              <FolderOpen className="w-4 h-4 mr-2" /> Load
+            </button>
+            <div className="relative">
+              <button onClick={() => setShowExportMenu(!showExportMenu)} className="flex items-center px-3 py-2 bg-green-700 text-white rounded-md shadow-sm text-sm font-medium hover:bg-green-800">
+                <Download className="w-4 h-4 mr-2" /> Export
+              </button>
+              {showExportMenu && (
+                <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
+                  <div className="py-1">
+                    <button onClick={() => handleExportDashboard('png')} className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left">Export as PNG</button>
+                    <button onClick={() => handleExportDashboard('jpeg')} className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left">Export as JPEG</button>
+                    <button onClick={() => handleExportDashboard('pdf')} className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 w-full text-left">Export as PDF</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
         <div
+          id="prediction-canvas"
           className="flex-1 p-6 overflow-y-auto"
           onDragOver={handleDragOver}
           onDrop={handleDrop}
@@ -573,14 +705,30 @@ export default function Predictions() {
         </div>
       </div>
 
+      {/* Resizer Handle for Sidebar */}
+      {sidebarOpen && (
+        <div
+          className="w-1.5 bg-gray-200 hover:bg-green-500 cursor-col-resize transition-colors flex items-center justify-center group z-30"
+          onMouseDown={(e) => {
+            e.preventDefault();
+            setIsResizingSidebar(true);
+          }}
+        >
+          <div className="h-8 w-0.5 bg-gray-400 group-hover:bg-white rounded"></div>
+        </div>
+      )}
+
       {/* Right Sidebar - Visuals Bin */}
-      <div className={`${sidebarOpen ? 'w-80 lg:w-96 translate-x-0' : 'w-0 -translate-x-full'} transition-all duration-300 ease-in-out bg-white border-l border-gray-200 flex flex-col z-20 shrink-0 absolute lg:relative h-full right-0 shadow-lg lg:shadow-none`}>
-        <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+      <div
+        style={{ width: sidebarOpen ? `${sidebarWidth}px` : '0px' }}
+        className={`transition-all duration-300 ease-in-out bg-white flex flex-col z-20 shrink-0 absolute lg:relative h-full right-0 shadow-lg lg:shadow-none overflow-hidden`}
+      >
+        <div className="p-4 border-b border-gray-200 flex justify-between items-center bg-gray-50 shrink-0">
           <h2 className="text-lg font-bold text-gray-800 flex items-center">
             <Layout className="w-5 h-5 mr-2 text-green-700" />
             Visuals Bin
           </h2>
-          <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-gray-500 hover:text-gray-700">
+          <button onClick={() => setSidebarOpen(false)} className="text-gray-500 hover:text-gray-700">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -636,6 +784,70 @@ export default function Predictions() {
       {/* Global Resize Overlay to prevent iframe event swallowing */}
       {resizingItemId && (
         <div className="fixed inset-0 z-[9999] cursor-se-resize" />
+      )}
+
+      {/* Save Modal */}
+      {showSaveModal && (
+        <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
+          <div className="bg-white rounded-lg shadow-2xl w-96 p-6 border border-gray-200 pointer-events-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-800">Save Prediction Dashboard</h2>
+              <button onClick={() => setShowSaveModal(false)} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
+            </div>
+            <p className="text-gray-600 text-sm mb-4">Save your current prediction layout to access it later.</p>
+            <input
+              type="text"
+              value={dashboardName}
+              onChange={(e) => setDashboardName(e.target.value)}
+              placeholder="Dashboard Name"
+              className="w-full border-gray-300 rounded-md shadow-sm p-2 border mb-4"
+              autoFocus
+            />
+            <div className="flex justify-end space-x-3 mt-6">
+              <button onClick={() => setShowSaveModal(false)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200">Cancel</button>
+              <button onClick={saveDashboard} disabled={!dashboardName} className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50">Save</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Load Modal */}
+      {showLoadModal && (
+        <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
+          <div className="bg-white rounded-lg shadow-2xl w-[500px] p-6 max-h-[80vh] flex flex-col border border-gray-200 pointer-events-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-800 flex items-center"><FolderOpen className="h-5 w-5 mr-2 text-blue-500" /> Load Dashboard</h2>
+              <button onClick={() => setShowLoadModal(false)} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
+            </div>
+            <div className="overflow-y-auto flex-1 border border-gray-200 rounded-md">
+              {savedDashboards.length === 0 ? (
+                <div className="p-8 text-center text-gray-500">No saved prediction dashboards found.</div>
+              ) : (
+                <ul className="divide-y divide-gray-200">
+                  {savedDashboards.map(d => (
+                    <li key={d.dashboard_id} className="p-4 hover:bg-gray-50 flex justify-between items-center group cursor-pointer" onClick={() => loadDashboard(d.dashboard_id)}>
+                      <div>
+                        <p className="font-semibold text-gray-800">{d.name}</p>
+                        <p className="text-xs text-gray-500">{new Date(d.created_at).toLocaleString()}</p>
+                      </div>
+                      <span className="text-blue-600 text-sm opacity-0 group-hover:opacity-100 transition-opacity font-medium">Load</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div className="flex justify-end mt-4">
+              <button onClick={() => setShowLoadModal(false)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className={`fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg text-white font-medium z-[100] transition-opacity duration-300 ${toastMessage.type === 'success' ? 'bg-green-600' : 'bg-red-600'}`}>
+          {toastMessage.text}
+        </div>
       )}
     </div>
   );

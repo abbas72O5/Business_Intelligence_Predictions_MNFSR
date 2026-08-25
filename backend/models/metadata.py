@@ -47,6 +47,7 @@ class SavedModelMetadata(BaseModel):
 class DashboardMetadata(BaseModel):
     dashboard_id: str
     name: str
+    type: str = "observation"
     charts: List[Any]  # Will store ChartConfig objects as dicts
     created_at: datetime
     created_by: str

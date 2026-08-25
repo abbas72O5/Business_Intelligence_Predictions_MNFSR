@@ -389,44 +389,55 @@ def generate_folium_map(df, lat_col, lon_col, val_col, map_type):
     
     if map_type == 'heat':
         from folium.plugins import HeatMap
-        heat_data = df[[lat_col, lon_col, val_col]].values.tolist()
-        HeatMap(heat_data, radius=15).add_to(m)
-    else:
-        max_val = df[val_col].max()
-        min_val = df[val_col].min()
+        if '_is_forecast' not in df.columns:
+            heat_data = df[[lat_col, lon_col, val_col]].values.tolist()
+        else:
+            heat_data = df[~df['_is_forecast']][[lat_col, lon_col, val_col]].values.tolist()
+            
+        if heat_data:
+            HeatMap(heat_data, radius=15).add_to(m)
+
+    max_val = df[val_col].max()
+    min_val = df[val_col].min()
+    
+    for idx, row in df.iterrows():
+        val = row[val_col]
+        is_forecast = row.get('_is_forecast', False)
         
-        for idx, row in df.iterrows():
-            val = row[val_col]
-            if math.isnan(val) or val is None:
-                continue
-            if max_val == min_val:
-                radius = 10
-            else:
-                radius = 5 + ((val - min_val) / (max_val - min_val)) * 15
-                
-            lbl = row.get('label')
-            if 'label' in df.columns and pd.notna(lbl) and str(lbl).strip() != '':
-                tooltip = str(lbl)
-            else:
-                tooltip = f"Value: {val}"
-                
-            is_forecast = row.get('_is_forecast', False)
-            if is_forecast:
-                color = '#f59e0b'
-                tooltip = "[PREDICTION] " + tooltip
-            else:
-                color = '#16a34a'
-                
-            folium.CircleMarker(
-                location=[row[lat_col], row[lon_col]],
-                radius=radius,
-                color=color,
-                fill=not is_forecast,
-                fill_color=color if not is_forecast else None,
-                fill_opacity=0.6 if not is_forecast else 0.0,
-                dash_array='5, 5' if is_forecast else None,
-                tooltip=tooltip
-            ).add_to(m)
+        if math.isnan(val) or val is None:
+            continue
+            
+        # If it's a heat map, only draw CircleMarkers for forecast points
+        if map_type == 'heat' and not is_forecast:
+            continue
+            
+        if max_val == min_val:
+            radius = 10
+        else:
+            radius = 5 + ((val - min_val) / (max_val - min_val)) * 15
+            
+        lbl = row.get('label')
+        if 'label' in df.columns and pd.notna(lbl) and str(lbl).strip() != '':
+            tooltip = str(lbl)
+        else:
+            tooltip = f"Value: {val}"
+            
+        if is_forecast:
+            color = '#f59e0b'
+            tooltip = "[PREDICTION] " + tooltip
+        else:
+            color = '#16a34a'
+            
+        folium.CircleMarker(
+            location=[row[lat_col], row[lon_col]],
+            radius=radius,
+            color=color,
+            fill=not is_forecast,
+            fill_color=color if not is_forecast else None,
+            fill_opacity=0.6 if not is_forecast else 0.0,
+            dash_array='5, 5' if is_forecast else None,
+            tooltip=tooltip
+        ).add_to(m)
             
     return m._repr_html_()
 

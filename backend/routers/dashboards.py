@@ -14,6 +14,8 @@ async def save_dashboard(payload: Dict[str, Any], current_user = Depends(get_cur
     name = payload.get("name")
     charts = payload.get("charts", [])
     
+    dashboard_type = payload.get("type", "observation")
+    
     if not name:
         raise HTTPException(status_code=400, detail="Dashboard name is required")
         
@@ -22,6 +24,7 @@ async def save_dashboard(payload: Dict[str, Any], current_user = Depends(get_cur
     doc = {
         "dashboard_id": dashboard_id,
         "name": name,
+        "type": dashboard_type,
         "charts": charts,
         "created_at": datetime.utcnow(),
         "created_by": str(current_user["_id"])
@@ -31,8 +34,14 @@ async def save_dashboard(payload: Dict[str, Any], current_user = Depends(get_cur
     return DashboardMetadata(**doc)
 
 @router.get("/", response_model=List[DashboardMetadata])
-async def get_dashboards(current_user = Depends(get_current_user)):
-    cursor = db.dashboards.find({"created_by": str(current_user["_id"])}).sort("created_at", -1)
+async def get_dashboards(type: str = None, current_user = Depends(get_current_user)):
+    query = {"created_by": str(current_user["_id"])}
+    if type == "observation":
+        query["$or"] = [{"type": "observation"}, {"type": {"$exists": False}}]
+    elif type:
+        query["type"] = type
+        
+    cursor = db.dashboards.find(query).sort("created_at", -1)
     dashboards = await cursor.to_list(length=1000)
     
     return [DashboardMetadata(**d) for d in dashboards]
