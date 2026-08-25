@@ -893,6 +893,11 @@ export default function Observations() {
           </div>
         </div>
       )}
+
+      {/* Global Resize Overlay to prevent iframe event swallowing */}
+      {resizingChartId && (
+        <div className="fixed inset-0 z-[9999] cursor-se-resize" />
+      )}
     </div>
   );
 }

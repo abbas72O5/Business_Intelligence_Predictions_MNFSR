@@ -334,59 +334,8 @@ async def generate_observation(request: ObservationQueryRequest, current_user = 
         df = duckdb.query(sql).df()
         
         if request.chart_type == "map":
-            import folium
-            import math
-            
-            # Drop rows with missing lat/lon
-            df = df.dropna(subset=[request.lat_column, request.lon_column])
-            
-            if df.empty:
-                m = folium.Map(location=[30.3753, 69.3451], zoom_start=4, tiles="CartoDB Positron")
-                return [{"map_html": m._repr_html_()}]
-                
-            avg_lat = df[request.lat_column].mean()
-            avg_lon = df[request.lon_column].mean()
-            
-            m = folium.Map(location=[avg_lat, avg_lon], zoom_start=4, tiles="CartoDB Positron")
-            
-            # Map type depends on whether they chose Heat Map or Bubble Map.
-            if request.map_type == 'heat':
-                from folium.plugins import HeatMap
-                heat_data = df[[request.lat_column, request.lon_column, request.val_column]].values.tolist()
-                HeatMap(heat_data, radius=15).add_to(m)
-            else:
-                # Bubble Map
-                max_val = df[request.val_column].max()
-                min_val = df[request.val_column].min()
-                
-                for idx, row in df.iterrows():
-                    val = row[request.val_column]
-                    if math.isnan(val):
-                        continue
-                    # Scale radius between 5 and 20
-                    if max_val == min_val:
-                        radius = 10
-                    else:
-                        radius = 5 + ((val - min_val) / (max_val - min_val)) * 15
-                        
-                    
-                    lbl = row.get('label')
-                    if 'label' in df.columns and lbl is not None and str(lbl) != 'nan' and str(lbl).strip() != '':
-                        tooltip = str(lbl)
-                    else:
-                        tooltip = f"Value: {val}"
-                    
-                    folium.CircleMarker(
-                        location=[row[request.lat_column], row[request.lon_column]],
-                        radius=radius,
-                        color='#16a34a',
-                        fill=True,
-                        fill_color='#16a34a',
-                        fill_opacity=0.6,
-                        tooltip=tooltip
-                    ).add_to(m)
-                    
-            return [{"map_html": m._repr_html_()}]
+            map_html = generate_folium_map(df, request.lat_column, request.lon_column, request.val_column, request.map_type)
+            return [{"map_html": map_html}]
             
         elif request.chart_type == "table":
             if df.empty:
@@ -421,6 +370,65 @@ async def save_model(request: SaveModelRequest, current_user = Depends(get_curre
     model_doc["_id"] = str(result.inserted_id)
     model_doc["id"] = model_doc["_id"]
     return model_doc
+def generate_folium_map(df, lat_col, lon_col, val_col, map_type):
+    import folium
+    import math
+    import pandas as pd
+    
+    # Drop rows with missing lat/lon
+    df = df.dropna(subset=[lat_col, lon_col])
+    
+    if df.empty:
+        m = folium.Map(location=[30.3753, 69.3451], zoom_start=4, tiles="CartoDB Positron")
+        return m._repr_html_()
+        
+    avg_lat = df[lat_col].mean()
+    avg_lon = df[lon_col].mean()
+    
+    m = folium.Map(location=[avg_lat, avg_lon], zoom_start=4, tiles="CartoDB Positron")
+    
+    if map_type == 'heat':
+        from folium.plugins import HeatMap
+        heat_data = df[[lat_col, lon_col, val_col]].values.tolist()
+        HeatMap(heat_data, radius=15).add_to(m)
+    else:
+        max_val = df[val_col].max()
+        min_val = df[val_col].min()
+        
+        for idx, row in df.iterrows():
+            val = row[val_col]
+            if math.isnan(val) or val is None:
+                continue
+            if max_val == min_val:
+                radius = 10
+            else:
+                radius = 5 + ((val - min_val) / (max_val - min_val)) * 15
+                
+            lbl = row.get('label')
+            if 'label' in df.columns and pd.notna(lbl) and str(lbl).strip() != '':
+                tooltip = str(lbl)
+            else:
+                tooltip = f"Value: {val}"
+                
+            is_forecast = row.get('_is_forecast', False)
+            if is_forecast:
+                color = '#f59e0b'
+                tooltip = "[PREDICTION] " + tooltip
+            else:
+                color = '#16a34a'
+                
+            folium.CircleMarker(
+                location=[row[lat_col], row[lon_col]],
+                radius=radius,
+                color=color,
+                fill=not is_forecast,
+                fill_color=color if not is_forecast else None,
+                fill_opacity=0.6 if not is_forecast else 0.0,
+                dash_array='5, 5' if is_forecast else None,
+                tooltip=tooltip
+            ).add_to(m)
+            
+    return m._repr_html_()
 
 @router.post("/predict")
 async def generate_prediction(request: PredictionQueryRequest, current_user = Depends(get_current_user)):
@@ -429,6 +437,8 @@ async def generate_prediction(request: PredictionQueryRequest, current_user = De
         import pandas as pd
         import numpy as np
         from sklearn.linear_model import LinearRegression
+
+
 
         x_cast = f"\"{request.x_column}\""
         val_cast = f"\"{request.value_column}\""
@@ -512,6 +522,9 @@ async def generate_prediction(request: PredictionQueryRequest, current_user = De
             records = []
             grouping_cols = request.grouping_columns or []
             
+            y_true_all = []
+            y_pred_all = []
+            
             if grouping_cols:
                 grouped = df.groupby(grouping_cols)
             else:
@@ -527,6 +540,9 @@ async def generate_prediction(request: PredictionQueryRequest, current_user = De
                 
                 model = LinearRegression()
                 model.fit(X, y_vals)
+                
+                y_true_all.extend(y_vals)
+                y_pred_all.extend(model.predict(X))
                 
                 step = 1
                 if len(group) > 1:
@@ -549,7 +565,42 @@ async def generate_prediction(request: PredictionQueryRequest, current_user = De
                 record[request.x_column] = float(future_x)
                 records.append(record)
                 
-            return records
+            if request.chart_type == "map":
+                df_future = pd.DataFrame(records)
+                if not df_future.empty:
+                    df_future['_is_forecast'] = True
+                    
+                df_historical = df.copy()
+                df_historical['_is_forecast'] = False
+                df_historical = df_historical.rename(columns={'y': request.value_column})
+                
+                if df_future.empty:
+                    combined = df_historical
+                else:
+                    combined = pd.concat([df_historical, df_future], ignore_index=True)
+                
+                lat_col = request.grouping_columns[0] if request.grouping_columns else None
+                lon_col = request.grouping_columns[1] if request.grouping_columns and len(request.grouping_columns) > 1 else None
+                
+                map_html = generate_folium_map(combined, lat_col, lon_col, request.value_column, request.map_type)
+                
+                from sklearn.metrics import r2_score
+                if len(y_true_all) > 1:
+                    r2 = r2_score(y_true_all, y_pred_all)
+                    accuracy = max(0.0, r2 * 100.0)
+                else:
+                    accuracy = 0.0
+                    
+                return {"records": [{"map_html": map_html}], "metrics": {"confidence_score": accuracy, "type": "R2"}}
+                
+            from sklearn.metrics import r2_score
+            if len(y_true_all) > 1:
+                r2 = r2_score(y_true_all, y_pred_all)
+                accuracy = max(0.0, r2 * 100.0)
+            else:
+                accuracy = 0.0
+                
+            return {"records": records, "metrics": {"confidence_score": accuracy, "type": "R2"}}
 
         # Detect numeric if not already passed in x_cast_type
         if not is_numeric:
@@ -586,7 +637,21 @@ async def generate_prediction(request: PredictionQueryRequest, current_user = De
             df['ds'] = df['ds'].astype(str)
             combined = combined.merge(df[['ds', 'y']], on='ds', how='left')
             combined = combined.replace({np.nan: None})
-            return combined.to_dict(orient="records")
+            
+            historical = combined.dropna(subset=['y'])
+            if not historical.empty:
+                actual = historical['y'].values
+                pred = historical['yhat'].values
+                mask = actual != 0
+                if np.any(mask):
+                    mape = np.mean(np.abs((actual[mask] - pred[mask]) / actual[mask]))
+                    accuracy = max(0.0, (1.0 - mape) * 100.0)
+                else:
+                    accuracy = 0.0
+            else:
+                accuracy = 0.0
+                
+            return {"records": combined.to_dict(orient="records"), "metrics": {"confidence_score": accuracy, "type": "MAPE"}}
             
         else:
             # NUMERIC (Linear Regression)
@@ -638,7 +703,14 @@ async def generate_prediction(request: PredictionQueryRequest, current_user = De
                     "yhat_upper": float(yhat_future[i] + 1.96 * se)
                 })
                 
-            return records
+            from sklearn.metrics import r2_score
+            if len(y) > 1:
+                r2 = r2_score(y, yhat_historical)
+                accuracy = max(0.0, r2 * 100.0)
+            else:
+                accuracy = 0.0
+                
+            return {"records": records, "metrics": {"confidence_score": accuracy, "type": "R2"}}
 
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Forecast failed: {str(e)}")

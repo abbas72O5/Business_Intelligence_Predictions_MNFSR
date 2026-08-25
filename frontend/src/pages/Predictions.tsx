@@ -26,6 +26,10 @@ interface CanvasItem {
     valCol: string;
   };
   predictionData: PredictionData[] | null;
+  predictionMetrics?: {
+    confidence_score: number;
+    type: string;
+  };
   loading: boolean;
   error: string | null;
 }
@@ -74,7 +78,7 @@ export default function Predictions() {
       const newWidth = Math.max(300, startSize.w + dx);
       const newHeight = Math.max(300, startSize.h + dy);
       updateCanvasItem(resizingItemId, { chart: { ...item.chart, width: newWidth, height: newHeight } });
-      window.dispatchEvent(new Event('resize')); 
+      window.dispatchEvent(new Event('resize'));
     };
     const handleMouseUp = () => setResizingItemId(null);
 
@@ -208,12 +212,18 @@ export default function Predictions() {
         value_cast_type: vCastType,
         chart_type: item.chart.chartType,
         grouping_columns: groupingColumns,
-        prediction_mode: predictionMode
+        prediction_mode: predictionMode,
+        map_type: item.chart.mapType || 'bubble'
       }, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
-      updateCanvasItem(item.id, { predictionData: res.data, isConfiguring: false, loading: false });
+      updateCanvasItem(item.id, {
+        predictionData: res.data.records,
+        predictionMetrics: res.data.metrics,
+        isConfiguring: false,
+        loading: false
+      });
     } catch (err: any) {
       console.error(err);
       let msg = "Failed to generate forecast.";
@@ -227,20 +237,46 @@ export default function Predictions() {
   const renderForecast = (item: CanvasItem) => {
     if (!item.predictionData || item.predictionData.length === 0) return null;
     const { predictionData, predictionConfig } = item;
-    
+
     // Check if this was a snapshot prediction (first object has the grouping columns instead of just ds/y/yhat)
     const isSnapshot = predictionData.length > 0 && !('yhat_upper' in predictionData[0]);
+
+    let confText = "Prediction Confidence: N/A";
+    let confColor = "text-gray-500";
+
+    if (item.predictionMetrics && item.predictionMetrics.confidence_score !== undefined) {
+      const score = item.predictionMetrics.confidence_score;
+      if (score > 85) {
+        confText = `Prediction Confidence: ${score.toFixed(1)}% - High Reliability (Strong Data Patterns)`;
+        confColor = "text-green-600";
+      } else if (score >= 70) {
+        confText = `Prediction Confidence: ${score.toFixed(1)}% - Moderate Reliability (Significant Variance)`;
+        confColor = "text-orange-500";
+      } else {
+        confText = `Prediction Confidence: ${score.toFixed(1)}% - Low Reliability (Unpredictable Data)`;
+        confColor = "text-red-500";
+      }
+    }
 
     if (isSnapshot) {
       // Map the prediction data directly back into the original chart's format!
       const updatedChart = { ...item.chart, chartData: predictionData };
       return (
-        <div className="w-full h-full relative flex flex-col pt-8">
+        <div className="w-full h-full relative flex flex-col pt-8 pb-6">
           <div className="absolute top-1 left-2 bg-yellow-100 text-yellow-800 text-[10px] font-bold px-2 py-0.5 rounded shadow-sm border border-yellow-200 z-10 flex items-center">
             <LineChart className="w-3 h-3 mr-1" />
             Forecast Snapshot (+{predictionConfig.periods} periods)
           </div>
-          <ChartRenderer chart={updatedChart} overrideWidth="100%" overrideHeight="100%" />
+          <div className="absolute top-1 right-8 flex space-x-3 z-10 bg-white/90 px-2 py-1 rounded shadow-sm border border-gray-200 text-[10px] font-medium">
+            <div className="flex items-center"><span className="w-2 h-2 rounded-sm bg-green-600 mr-1"></span>Historical</div>
+            <div className="flex items-center"><span className="w-2 h-2 rounded-sm bg-amber-500 mr-1"></span>Predicted</div>
+          </div>
+          <div className="flex-1 w-full relative">
+            <ChartRenderer chart={updatedChart} overrideWidth="100%" overrideHeight="100%" />
+          </div>
+          <div className={`absolute bottom-1 left-0 right-0 text-center text-xs font-medium z-10 bg-white/90 py-1 border-t border-gray-100 shadow-sm ${confColor}`}>
+            {confText}
+          </div>
         </div>
       );
     }
@@ -255,25 +291,32 @@ export default function Predictions() {
         // Add a visual indicator field just in case
         _is_forecast: d.y === null
       }));
-      
+
       const updatedChart = { ...item.chart, chartData: mappedData };
       return (
-        <div className="w-full h-full relative flex flex-col pt-8">
+        <div className="w-full h-full relative flex flex-col pt-8 pb-6">
           <div className="absolute top-1 left-2 bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded shadow-sm border border-blue-200 z-10 flex items-center">
             <LineChart className="w-3 h-3 mr-1" />
             Trajectory (+{predictionConfig.periods} periods)
           </div>
-          <ChartRenderer chart={updatedChart} overrideWidth="100%" overrideHeight="100%" />
+          <div className="absolute top-1 right-8 flex space-x-3 z-10 bg-white/90 px-2 py-1 rounded shadow-sm border border-gray-200 text-[10px] font-medium">
+            <div className="flex items-center"><span className="w-2 h-2 rounded-sm bg-green-600 mr-1"></span>Historical</div>
+            <div className="flex items-center"><span className="w-2 h-2 rounded-sm bg-amber-500 mr-1"></span>Predicted</div>
+          </div>
+          <div className="flex-1 w-full relative">
+            <ChartRenderer chart={updatedChart} overrideWidth="100%" overrideHeight="100%" />
+          </div>
+          <div className={`absolute bottom-1 left-0 right-0 text-center text-xs font-medium z-10 bg-white/90 py-1 border-t border-gray-100 shadow-sm ${confColor}`}>
+            {confText}
+          </div>
         </div>
       );
     }
 
-    // If it was originally a line chart, render the advanced Plot with confidence intervals
+    // If it was originally a line chart, render the advanced Plot
     const ds = predictionData.map(d => d.ds);
     const y_actual = predictionData.map(d => d.y);
     const yhat = predictionData.map(d => d.yhat);
-    const yhat_lower = predictionData.map(d => d.yhat_lower);
-    const yhat_upper = predictionData.map(d => d.yhat_upper);
 
     const actualTrace = {
       x: ds,
@@ -292,46 +335,32 @@ export default function Predictions() {
       name: 'Forecast',
       line: { color: '#f59e0b', width: 2, dash: 'dot' }
     };
-    const upperTrace = {
-      x: ds,
-      y: yhat_upper,
-      type: 'scatter',
-      mode: 'lines',
-      marker: { color: '#444' },
-      line: { width: 0 },
-      name: 'Upper Bound',
-      showlegend: false
-    };
-    const lowerTrace = {
-      x: ds,
-      y: yhat_lower,
-      type: 'scatter',
-      mode: 'lines',
-      marker: { color: '#444' },
-      line: { width: 0 },
-      fillcolor: 'rgba(245, 158, 11, 0.2)',
-      fill: 'tonexty',
-      name: 'Confidence Interval'
-    };
 
     return (
-      <Plot
-        data={[upperTrace, lowerTrace, actualTrace, forecastTrace] as any}
-        layout={{
-          title: `Forecast: ${predictionConfig.valCol}`,
-          autosize: true,
-          margin: { l: 50, r: 50, b: 50, t: 50, pad: 4 },
-          paper_bgcolor: 'transparent',
-          plot_bgcolor: 'transparent',
-          hovermode: 'x unified',
-          xaxis: { title: predictionConfig.dateCol },
-          yaxis: { title: predictionConfig.valCol },
-          legend: { orientation: 'h', y: -0.2 }
-        }}
-        config={{ displaylogo: false, responsive: true }}
-        useResizeHandler={true}
-        style={{ width: '100%', height: '100%' }}
-      />
+      <div className="w-full h-full relative flex flex-col pt-2 pb-6">
+        <div className="flex-1 w-full relative">
+          <Plot
+            data={[actualTrace, forecastTrace] as any}
+            layout={{
+              title: `Forecast: ${predictionConfig.valCol}`,
+              autosize: true,
+              margin: { l: 50, r: 50, b: 30, t: 50, pad: 4 },
+              paper_bgcolor: 'transparent',
+              plot_bgcolor: 'transparent',
+              hovermode: 'x unified',
+              xaxis: { title: predictionConfig.dateCol },
+              yaxis: { title: predictionConfig.valCol },
+              legend: { orientation: 'h', y: -0.2 }
+            }}
+            config={{ displaylogo: false, responsive: true }}
+            useResizeHandler={true}
+            style={{ width: '100%', height: '100%' }}
+          />
+        </div>
+        <div className={`absolute bottom-1 left-0 right-0 text-center text-xs font-medium z-10 bg-white/90 py-1 border-t border-gray-100 shadow-sm ${confColor}`}>
+          {confText}
+        </div>
+      </div>
     );
   };
 
@@ -391,8 +420,8 @@ export default function Predictions() {
                 const cols = getColumns(item.chart);
 
                 return (
-                  <div 
-                    key={item.id} 
+                  <div
+                    key={item.id}
                     className="bg-white rounded-xl shadow-md border border-gray-200 flex flex-col overflow-hidden relative group"
                     style={{ width: item.chart.width || 500, height: item.chart.height || 400 }}
                   >
@@ -510,7 +539,7 @@ export default function Predictions() {
                       ) : item.predictionData ? (
                         renderForecast(item)
                       ) : (
-                        <div className={item.loading ? 'opacity-50 pointer-events-none' : ''}>
+                        <div className={`w-full h-full relative ${item.loading ? 'opacity-50 pointer-events-none' : ''}`}>
                           <ChartRenderer chart={item.chart} overrideWidth="100%" overrideHeight="100%" />
                           {item.loading && (
                             <div className="absolute inset-0 flex items-center justify-center bg-white/50 backdrop-blur-sm z-10">
@@ -520,7 +549,7 @@ export default function Predictions() {
                         </div>
                       )}
                     </div>
-                    
+
                     {/* Resize Handle */}
                     <div
                       className="absolute bottom-0 right-0 w-4 h-4 cursor-se-resize z-20 opacity-0 group-hover:opacity-100"
@@ -603,6 +632,11 @@ export default function Predictions() {
           )}
         </div>
       </div>
+
+      {/* Global Resize Overlay to prevent iframe event swallowing */}
+      {resizingItemId && (
+        <div className="fixed inset-0 z-[9999] cursor-se-resize" />
+      )}
     </div>
   );
 }
