@@ -44,6 +44,7 @@ function DataSelectionCanvas() {
   const [nodeContextMenu, setNodeContextMenu] = useState<{ id: string, top: number, left: number } | null>(null);
   const [selectedEdge, setSelectedEdge] = useState<Edge | null>(null);
   const [confirmAction, setConfirmAction] = useState<{ title: string, message: string, onConfirm: () => void } | null>(null);
+  const [errorPopup, setErrorPopup] = useState<{ title: string, message: string } | null>(null);
 
   const fetchFiles = useCallback(() => {
     axios.get('http://localhost:8000/files/', {
@@ -90,7 +91,69 @@ function DataSelectionCanvas() {
     });
   }, []);
 
-  const onChangeColumnType = useCallback(async (nodeId: string, tableId: string, colName: string, newType: string) => {
+  const onChangeColumnType = useCallback(async (nodeId: string, tableId: string, colName: string, oldType: string, newType: string) => {
+    const o = oldType.toLowerCase();
+    const n = newType.toLowerCase();
+    
+    if (o === n) return;
+
+    // Define permissible casts according to business rules:
+    const allowed: Record<string, string[]> = {
+      'integer': ['float', 'string'],
+      'float': ['integer', 'string'],
+      'string': ['date'],
+      'date': ['string'],
+      'boolean': ['string']
+    };
+
+    const isAllowed = allowed[o]?.includes(n);
+
+    if (!isAllowed) {
+      setErrorPopup({
+        title: "Invalid Data Type Cast",
+        message: `Cannot cast column '${colName}' from ${oldType} to ${newType}. Allowed casts for ${oldType} are: ${allowed[o]?.join(', ') || 'none'}.`
+      });
+      return;
+    }
+
+    // Special verification for String -> Date cast
+    if (o === 'string' && n === 'date') {
+      try {
+        const res = await axios.get(`http://localhost:8000/files/${tableId}/preview?limit=50`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = res.data;
+        if (data && data.length > 0) {
+          let validDates = 0;
+          let totalChecked = 0;
+          for (const row of data) {
+            const val = row[colName];
+            if (val === null || val === undefined || val === '') continue;
+            totalChecked++;
+            // Check if string can be parsed to a date
+            if (!isNaN(Date.parse(String(val)))) {
+              validDates++;
+            }
+          }
+          
+          if (totalChecked > 0 && validDates / totalChecked < 0.5) {
+            setErrorPopup({
+              title: "Invalid Data Type Cast",
+              message: `Cannot cast column '${colName}' to Date. A sample of the top 50 rows indicates that the data does not contain valid dates.`
+            });
+            return;
+          }
+        }
+      } catch (err) {
+        console.error("Failed to fetch preview for validation", err);
+        setErrorPopup({
+          title: "Validation Error",
+          message: "Failed to validate the data for casting. The server might be unreachable."
+        });
+        return;
+      }
+    }
+
     try {
       await axios.put(`http://localhost:8000/files/${tableId}/columns/${colName}/type`, { new_type: newType }, {
         headers: { Authorization: `Bearer ${token}` }
@@ -122,8 +185,8 @@ function DataSelectionCanvas() {
             selectedColumns: new Set(n.data.selectedColumnsArray || []),
             onToggleColumn: (nId: string, fId: string, col: string, typ: string, chk: boolean) =>
               onToggleColumn(nId, fId, n.data.filename, col, typ, chk),
-            onChangeColumnType: (nId: string, tId: string, col: string, typ: string) =>
-              onChangeColumnType(nId, tId, col, typ)
+            onChangeColumnType: (nId: string, tId: string, col: string, oTyp: string, nTyp: string) =>
+              onChangeColumnType(nId, tId, col, oTyp, nTyp)
           }
         }));
         setNodes(parsedNodes);
@@ -150,6 +213,7 @@ function DataSelectionCanvas() {
         data: {
           ...n.data,
           onToggleColumn: undefined, // Cannot serialize functions
+          onChangeColumnType: undefined,
           selectedColumnsArray: Array.from(n.data.selectedColumns || [])
         }
       }));
@@ -187,6 +251,30 @@ function DataSelectionCanvas() {
   };
 
   const onConnect = useCallback(async (params: Connection | Edge) => {
+    const sourceNode = nodes.find(n => n.id === params.source);
+    const targetNode = nodes.find(n => n.id === params.target);
+    
+    // Extract column names
+    const sourceColName = params.sourceHandle?.replace('-source', '');
+    const targetColName = params.targetHandle?.replace('-target', '');
+    
+    if (sourceNode && targetNode && sourceColName && targetColName) {
+      // Find columns to check types
+      const sourceColData = sourceNode.data.columns?.find((c: any) => (c.alias || c.name || c.column) === sourceColName || c.name === sourceColName);
+      const targetColData = targetNode.data.columns?.find((c: any) => (c.alias || c.name || c.column) === targetColName || c.name === targetColName);
+      
+      if (sourceColData && targetColData) {
+        // Sanitize: Check for data type mismatch
+        if (sourceColData.type !== targetColData.type) {
+          setErrorPopup({
+            title: "Data Type Mismatch",
+            message: `Cannot establish relationship. The data type of '${sourceColName}' is ${sourceColData.type || 'Unknown'}, but '${targetColName}' is ${targetColData.type || 'Unknown'}. Please ensure both columns have identical data types.`
+          });
+          return; // Abort connection
+        }
+      }
+    }
+
     const edgeId = `e_${params.source}_${params.target}_${Date.now()}`;
     const newEdge = {
       ...params,
@@ -197,8 +285,7 @@ function DataSelectionCanvas() {
     setEdges((eds) => addEdge(newEdge, eds));
     
     // Save to backend
-    const sourceNode = nodes.find(n => n.id === params.source);
-    const targetNode = nodes.find(n => n.id === params.target);
+
     if (sourceNode && targetNode) {
       try {
         await axios.post('http://localhost:8000/relationships/', {
@@ -362,8 +449,8 @@ function DataSelectionCanvas() {
           selectedColumns: new Set(),
           onToggleColumn: (nId: string, fId: string, col: string, typ: string, chk: boolean) =>
             onToggleColumn(nId, fId, fileMeta.filename, col, typ, chk),
-          onChangeColumnType: (nId: string, tId: string, col: string, typ: string) =>
-            onChangeColumnType(nId, tId, col, typ)
+          onChangeColumnType: (nId: string, tId: string, col: string, oTyp: string, nTyp: string) =>
+            onChangeColumnType(nId, tId, col, oTyp, nTyp)
         },
       };
 
@@ -882,6 +969,26 @@ function DataSelectionCanvas() {
                 <button onClick={() => setConfirmAction(null)} className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md text-sm font-bold">Cancel</button>
                 <button onClick={confirmAction.onConfirm} className="px-4 py-2 text-white bg-red-600 hover:bg-red-700 rounded-md text-sm font-bold">
                   Confirm
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Error Popup Modal */}
+      {errorPopup && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100] p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-sm">
+            <div className="p-6">
+              <div className="flex items-center justify-center w-12 h-12 rounded-full bg-red-100 mb-4">
+                <AlertTriangle className="h-6 w-6 text-red-600" />
+              </div>
+              <h3 className="text-lg font-bold text-gray-900 mb-2">{errorPopup.title}</h3>
+              <p className="text-sm text-gray-500 mb-6">{errorPopup.message}</p>
+              <div className="flex justify-end">
+                <button onClick={() => setErrorPopup(null)} className="px-4 py-2 text-white bg-red-600 hover:bg-red-700 rounded-md text-sm font-bold">
+                  Got it
                 </button>
               </div>
             </div>

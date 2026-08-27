@@ -39,7 +39,7 @@ export default function TableNode({ data, id }: NodeProps) {
               </div>
               <select 
                 value={col.type}
-                onChange={(e) => data.onChangeColumnType && data.onChangeColumnType(id, data.table_id, col.name, e.target.value)}
+                onChange={(e) => data.onChangeColumnType && data.onChangeColumnType(id, data.table_id, col.name, col.type, e.target.value)}
                 className="text-[10px] font-mono bg-gray-100 text-gray-500 px-1 py-0.5 rounded border border-transparent hover:border-gray-300 focus:border-green-500 focus:ring-1 focus:ring-green-500 outline-none appearance-none cursor-pointer"
               >
                 <option value="String">String</option>

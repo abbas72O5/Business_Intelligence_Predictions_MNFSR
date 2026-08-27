@@ -133,14 +133,14 @@ async def get_files(current_user = Depends(get_current_user)):
     ]
 
 @router.get("/{table_id}/preview")
-async def preview_file(table_id: str, current_user = Depends(get_current_user)):
+async def preview_file(table_id: str, limit: int = 50, current_user = Depends(get_current_user)):
     file_doc = await db.table_metadata.find_one({"table_id": table_id})
     if not file_doc:
         raise HTTPException(status_code=404, detail="File not found")
         
     try:
         df = pd.read_parquet(file_doc["storage_path"])
-        preview_data = df.head(5).fillna("").to_dict(orient="records")
+        preview_data = df.head(limit).fillna("").to_dict(orient="records")
         return preview_data
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error reading preview: {str(e)}")
