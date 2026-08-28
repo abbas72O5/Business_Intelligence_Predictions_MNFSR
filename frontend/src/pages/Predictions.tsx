@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import { LineChart, LayoutDashboard, PanelRightOpen, X, GripVertical, Trash2, Layout, Loader2, Save, Download, FolderOpen } from 'lucide-react';
 import ChartRenderer from '../components/ChartRenderer';
@@ -66,6 +66,23 @@ export default function Predictions() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sidebarWidth, setSidebarWidth] = useState(384);
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
+
+  // Drag and Drop state
+  const dragItem = useRef<number | null>(null);
+  const dragOverItem = useRef<number | null>(null);
+  const [dragEnabledIdx, setDragEnabledIdx] = useState<number | null>(null);
+
+  const handleSort = () => {
+    if (dragItem.current !== null && dragOverItem.current !== null && dragItem.current !== dragOverItem.current) {
+      const _canvasVisuals = [...canvasVisuals];
+      const draggedItemContent = _canvasVisuals.splice(dragItem.current, 1)[0];
+      _canvasVisuals.splice(dragOverItem.current, 0, draggedItemContent);
+      setCanvasVisuals(_canvasVisuals);
+    }
+    dragItem.current = null;
+    dragOverItem.current = null;
+    setDragEnabledIdx(null);
+  };
 
   // Resizing sidebar state
   useEffect(() => {
@@ -548,19 +565,39 @@ export default function Predictions() {
             </div>
           ) : (
             <div className="flex flex-wrap gap-6 items-start pb-8">
-              {canvasVisuals.map((item) => {
+              {canvasVisuals.map((item, index) => {
                 const cols = getColumns(item.chart);
 
                 return (
                   <div
                     key={item.id}
-                    className="bg-white rounded-xl shadow-md border border-gray-200 flex flex-col overflow-hidden relative group"
+                    className={`bg-white rounded-xl shadow-md border border-gray-200 flex flex-col overflow-hidden relative group transition-all duration-200 ${dragEnabledIdx === index ? 'ring-2 ring-green-500 opacity-90' : ''}`}
                     style={{ width: item.chart.width || 500, height: item.chart.height || 400 }}
+                    draggable={dragEnabledIdx === index}
+                    onDragStart={(e) => {
+                      dragItem.current = index;
+                      if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+                    }}
+                    onDragEnter={(e) => {
+                      dragOverItem.current = index;
+                    }}
+                    onDragEnd={handleSort}
+                    onDragOver={(e) => e.preventDefault()}
                   >
                     <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex justify-between items-center">
-                      <h3 className="font-semibold text-gray-800 text-sm truncate pr-4">
-                        {item.chart.selectedDataset?.data?.filename || item.chart.selectedDataset?.data?.name || 'Chart'}
-                      </h3>
+                      <div className="flex items-center space-x-2 flex-1 min-w-0">
+                        <div 
+                          className="cursor-move text-gray-400 hover:text-gray-600 p-1 -ml-2 rounded hover:bg-gray-200 transition-colors"
+                          onMouseEnter={() => setDragEnabledIdx(index)}
+                          onMouseLeave={() => setDragEnabledIdx(null)}
+                          title="Drag to reorder"
+                        >
+                          <GripVertical className="w-4 h-4" />
+                        </div>
+                        <h3 className="font-semibold text-gray-800 text-sm truncate pr-4">
+                          {item.chart.selectedDataset?.data?.filename || item.chart.selectedDataset?.data?.name || 'Chart'}
+                        </h3>
+                      </div>
                       <div className="flex items-center space-x-2">
                         <button
                           onClick={() => updateCanvasItem(item.id, { isConfiguring: !item.isConfiguring })}

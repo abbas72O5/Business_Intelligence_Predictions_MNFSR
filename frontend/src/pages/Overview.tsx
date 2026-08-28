@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
-import { UserCheck, ShieldCheck } from 'lucide-react';
+import { UserCheck, ShieldCheck, LayoutDashboard } from 'lucide-react';
+import ChartRenderer from '../components/ChartRenderer';
 
 export default function Overview() {
   const { user, token } = useAuth();
   const [pendingUsers, setPendingUsers] = useState<any[]>([]);
   const [refresh, setRefresh] = useState(0);
+
+  const [recentDashboards, setRecentDashboards] = useState<any[]>([]);
 
   useEffect(() => {
     if (user?.role === 'admin' || user?.role === 'superadmin') {
@@ -16,6 +19,20 @@ export default function Overview() {
         .catch(console.error);
     }
   }, [user, token, refresh]);
+
+  useEffect(() => {
+    // Fetch user's recent dashboards
+    axios.get('http://localhost:8000/dashboards/', {
+      headers: { Authorization: `Bearer ${token}` }
+    }).then(res => {
+      setRecentDashboards(res.data);
+    }).catch(console.error);
+  }, [token]);
+
+  // Extract up to 4 recent visuals from dashboards
+  const recentVisuals = recentDashboards
+    .flatMap(d => (d.charts || []).map((chart: any) => ({ ...chart, dashboardName: d.name })))
+    .slice(0, 4);
 
   const handleVerify = async (userId: string) => {
     try {
@@ -80,6 +97,40 @@ export default function Overview() {
           </ul>
         </div>
       )}
+
+      {/* Recent Visuals Section */}
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div className="px-6 py-5 border-b border-gray-200 bg-gray-50/50 flex justify-between items-center">
+          <div className="flex items-center">
+            <LayoutDashboard className="h-6 w-6 text-green-700 mr-2" />
+            <h3 className="text-lg leading-6 font-bold text-gray-900">
+              Recent Dashboard Visuals
+            </h3>
+          </div>
+        </div>
+        
+        <div className="p-6">
+          {recentVisuals.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-gray-500 font-medium">No recent visuals found.</p>
+              <p className="text-sm text-gray-400 mt-1">Go to Observations or Predictions to create some!</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
+              {recentVisuals.map((chart: any, idx: number) => (
+                <div key={idx} className="border border-gray-200 rounded-lg p-4 shadow-sm bg-gray-50/30 flex flex-col items-center">
+                  <div className="w-full text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 text-center border-b pb-2">
+                    From: {chart.dashboardName}
+                  </div>
+                  <div className="w-full overflow-hidden flex justify-center bg-white rounded">
+                    <ChartRenderer chart={chart} overrideWidth="100%" overrideHeight="300px" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

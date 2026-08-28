@@ -48,14 +48,19 @@ export default function Register() {
       <div className="hidden lg:flex lg:w-[70%] bg-green-900 flex-col justify-center items-center text-white px-12 relative overflow-hidden">
         <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-white via-transparent to-transparent"></div>
 
-        <div className="relative z-10 text-center max-w-3xl">
-          <ShieldCheck className="mx-auto h-24 w-24 text-yellow-500 mb-8" />
-          <h1 className="text-5xl font-extrabold mb-6 tracking-tight">
-            Account Registration
-          </h1>
-          <p className="text-xl text-green-100 max-w-2xl mx-auto leading-relaxed">
-            Create an official account to join your department's collaborative BI environment. Note: New accounts require admin verification.
-          </p>
+        <div className="relative z-10 flex flex-col items-center max-w-5xl -mt-20 px-8">
+          <div className="flex flex-row items-center justify-center gap-8 mb-12">
+            <img src="/main_logo.png" alt="Ministry of National Food Security and Research" className="h-auto drop-shadow-2xl flex-shrink-0" style={{ maxHeight: '30vh' }} />
+            <h1 className="text-4xl lg:text-4xl font-bold tracking-tight text-white drop-shadow-lg text-left leading-tight max-w-lg">
+              Ministry Of National Food Security And Research
+            </h1>
+          </div>
+
+          <div className="text-center w-full">
+            <h2 className="text-4xl lg:text-4xl font-bold text-green-20 max-w-5xl mx-auto">
+              Business Intelligence & Predictions System
+            </h2>
+          </div>
         </div>
       </div>
 

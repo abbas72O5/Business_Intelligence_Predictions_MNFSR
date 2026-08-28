@@ -27,11 +27,11 @@ export default function DashboardLayout() {
       )}
 
       {/* Sidebar */}
-      <div className={`fixed inset-y-0 left-0 z-30 w-64 bg-green-900 text-white transform transition-transform duration-300 lg:translate-x-0 lg:static lg:inset-auto ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <div className="h-16 flex items-center justify-center border-b border-green-800">
+      <div className={`fixed inset-y-0 left-0 z-30 w-64 bg-green-900 text-white transform transition-transform duration-300 flex flex-col lg:translate-x-0 lg:sticky lg:top-0 lg:h-screen ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <div className="h-16 flex items-center justify-center border-b border-green-800 shrink-0">
           <img src="/logo.png" alt="Ministry of National Food Security and Research" className="h-16 w-auto object-contain" />
         </div>
-        <nav className="p-4 space-y-2 mt-4">
+        <nav className="p-4 space-y-2 mt-4 flex-1 overflow-y-auto">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
@@ -51,9 +51,9 @@ export default function DashboardLayout() {
             );
           })}
         </nav>
-        <div className="absolute bottom-0 w-full p-4 border-t border-green-800">
+        <div className="p-4 border-t border-green-800 shrink-0 mt-auto bg-green-900">
           <p className="text-center text-xs text-green-200 font-medium tracking-wider uppercase opacity-80">
-            Powered by MNFSR
+            Powered by MINISTRY OF NATIONAL FOOD SECURITY AND RESEARCH
           </p>
         </div>
       </div>
