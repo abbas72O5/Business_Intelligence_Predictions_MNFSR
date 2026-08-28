@@ -73,7 +73,22 @@ export default function ChartRenderer({ chart, className, overrideWidth, overrid
   if (chart.chartType === 'bar') {
     data = [{ type: 'bar', x: xValues, y: yValues, marker: { color: hasForecast ? colors : '#16a34a' } }];
   } else if (chart.chartType === 'line') {
-    data = [{ type: 'scatter', mode: 'lines+markers', x: xValues, y: yValues, line: { color: '#16a34a' } }];
+    if (hasForecast) {
+      const histX = chart.chartData.filter((d: any) => !d._is_forecast).map((d: any) => d[chart.xColumn]);
+      const histY = chart.chartData.filter((d: any) => !d._is_forecast).map((d: any) => d[chart.yColumn]);
+      const predX = chart.chartData.filter((d: any) => d._is_forecast).map((d: any) => d[chart.xColumn]);
+      const predY = chart.chartData.filter((d: any) => d._is_forecast).map((d: any) => d[chart.yColumn]);
+      
+      const lastHistX = histX[histX.length - 1];
+      const lastHistY = histY[histY.length - 1];
+      
+      data = [
+        { type: 'scatter', mode: 'lines+markers', x: histX, y: histY, name: 'Historical', line: { color: '#16a34a' } },
+        { type: 'scatter', mode: 'lines', x: [lastHistX, ...predX], y: [lastHistY, ...predY], name: 'Predicted', line: { color: '#f59e0b', dash: 'dot' } }
+      ];
+    } else {
+      data = [{ type: 'scatter', mode: 'lines+markers', x: xValues, y: yValues, line: { color: '#16a34a' } }];
+    }
   } else if (chart.chartType === 'scatter') {
     data = [{ type: 'scatter', mode: 'markers', x: xValues, y: yValues, marker: { size: 10, color: hasForecast ? colors : '#16a34a' } }];
   } else if (chart.chartType === 'pie') {

@@ -346,6 +346,14 @@ export default function Observations() {
     }
   };
 
+  useEffect(() => {
+    const autoLoadId = localStorage.getItem('obs_auto_load_id');
+    if (autoLoadId) {
+      loadDashboard(autoLoadId);
+      localStorage.removeItem('obs_auto_load_id');
+    }
+  }, []);
+
   // renderPlot has been moved to ChartRenderer
 
   const configuringChart = charts.find(c => c.id === configuringChartId);
