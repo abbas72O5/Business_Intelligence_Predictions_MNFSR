@@ -36,6 +36,8 @@ function DataSelectionCanvas() {
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
   const [isSaveModelModalOpen, setIsSaveModelModalOpen] = useState(false);
+  const [isLoadModelModalOpen, setIsLoadModelModalOpen] = useState(false);
+  const [savedModels, setSavedModels] = useState<any[]>([]);
   const [newTableName, setNewTableName] = useState('');
   const [newModelName, setNewModelName] = useState('');
   const [loading, setLoading] = useState(false);
@@ -548,6 +550,113 @@ function DataSelectionCanvas() {
     }
   };
 
+  const fetchSavedModels = async () => {
+    try {
+      const res = await axios.get('http://localhost:8000/query/saved_models', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setSavedModels(res.data);
+      setIsLoadModelModalOpen(true);
+    } catch (err) {
+      console.error("Failed to fetch saved models", err);
+      setErrorPopup({ title: 'Error', message: 'Failed to fetch saved models.' });
+    }
+  };
+
+  const loadModel = (model: any) => {
+    // 1. Determine which unique tables are needed
+    const tableIds = new Set<string>();
+    model.columns.forEach((col: any) => tableIds.add(col.table_id));
+    model.joins.forEach((join: any) => {
+      tableIds.add(join.source_table_id);
+      tableIds.add(join.target_table_id);
+    });
+
+    // 2. Generate nodes for these tables, spaced out horizontally
+    const newNodes: any[] = [];
+    const nodeIdMap = new Map<string, string>(); // map table_id to node_id
+    
+    let xOffset = 100;
+    Array.from(tableIds).forEach((tableId, index) => {
+      const fileMeta = files.find(f => f.table_id === tableId);
+      if (!fileMeta) return; // If file was deleted but model still exists
+      
+      const newNodeId = `node_${Date.now()}_${index}`;
+      nodeIdMap.set(tableId, newNodeId);
+      
+      newNodes.push({
+        id: newNodeId,
+        type: 'tableNode',
+        position: { x: xOffset, y: 100 },
+        data: {
+          filename: fileMeta.filename,
+          table_id: fileMeta.table_id,
+          columns: fileMeta.columns,
+          selectedColumns: new Set(),
+          onToggleColumn: (nId: string, fId: string, col: string, typ: string, chk: boolean) =>
+            onToggleColumn(nId, fId, fileMeta.filename, col, typ, chk),
+          onChangeColumnType: (nId: string, tId: string, col: string, oTyp: string, nTyp: string) =>
+            onChangeColumnType(nId, tId, col, oTyp, nTyp)
+        },
+      });
+      xOffset += 350;
+    });
+
+    setNodes(newNodes);
+
+    // 3. Reconstruct selected columns
+    const newSelectedColumns = new Map();
+    model.columns.forEach((col: any) => {
+      const nodeId = nodeIdMap.get(col.table_id);
+      if (nodeId) {
+        const fileMeta = files.find(f => f.table_id === col.table_id);
+        const fileType = fileMeta?.columns.find(c => c.name === col.column)?.type || 'String';
+        const key = `${nodeId}-${col.table_id}-${col.column}`;
+        newSelectedColumns.set(key, { 
+          nodeId, 
+          tableId: col.table_id, 
+          filename: fileMeta?.filename || '', 
+          colName: col.column, 
+          type: fileType, 
+          alias: col.alias || col.column 
+        });
+      }
+    });
+    setSelectedColumns(newSelectedColumns);
+
+    // 4. Reconstruct edges
+    const newEdges: any[] = [];
+    model.joins.forEach((join: any, index: number) => {
+      const sourceNodeId = nodeIdMap.get(join.source_table_id);
+      const targetNodeId = nodeIdMap.get(join.target_table_id);
+      if (sourceNodeId && targetNodeId) {
+        const sourceHandle = `${join.source_column}-source`;
+        const targetHandle = `${join.target_column}-target`;
+        newEdges.push({
+          id: `reactflow__edge-${sourceNodeId}${sourceHandle}-${targetNodeId}${targetHandle}`,
+          source: sourceNodeId,
+          target: targetNodeId,
+          sourceHandle: sourceHandle,
+          targetHandle: targetHandle,
+          data: {
+            joinType: join.join_type,
+            cardinality: '1:1', // generic default, as cardinality isn't saved in SavedModelMetadata yet
+            isActive: true
+          },
+          animated: true,
+          style: { stroke: '#3b82f6', strokeWidth: 2 },
+        });
+      }
+    });
+    
+    // Slight timeout to let nodes render before applying edges
+    setTimeout(() => {
+      setEdges(newEdges);
+    }, 50);
+
+    setIsLoadModelModalOpen(false);
+  };
+
   const deleteFile = (e: React.MouseEvent, tableId: string) => {
     e.stopPropagation();
     setConfirmAction({
@@ -626,6 +735,13 @@ function DataSelectionCanvas() {
           >
             <PlayCircle className="h-5 w-5 mr-2" />
             Preview
+          </button>
+          <button
+            onClick={fetchSavedModels}
+            className="flex items-center bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md font-bold shadow-sm transition-colors disabled:opacity-50"
+          >
+            <ListTree className="h-5 w-5 mr-2" />
+            Load Model
           </button>
           <button
             onClick={() => setIsSaveModelModalOpen(true)}
@@ -991,6 +1107,58 @@ function DataSelectionCanvas() {
                   Got it
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Load Model Modal */}
+      {isLoadModelModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md max-h-[80vh] flex flex-col">
+            <div className="flex justify-between items-center p-6 border-b border-gray-200">
+              <h2 className="text-xl font-bold text-gray-900 flex items-center">
+                <ListTree className="h-5 w-5 mr-2 text-indigo-500" />
+                Load Model
+              </h2>
+              <button onClick={() => setIsLoadModelModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto flex-1">
+              {savedModels.length === 0 ? (
+                <div className="text-center text-gray-500 py-8">No saved models found.</div>
+              ) : (
+                <ul className="space-y-3">
+                  {savedModels.map((model) => (
+                    <li 
+                      key={model.id}
+                      onClick={() => loadModel(model)}
+                      className="border border-gray-200 rounded-md p-4 hover:border-indigo-500 hover:bg-indigo-50 cursor-pointer transition-colors group"
+                    >
+                      <div className="flex justify-between items-center">
+                        <div>
+                          <p className="font-bold text-gray-800">{model.name}</p>
+                          <p className="text-xs text-gray-500 mt-1">{new Date(model.created_at).toLocaleString()}</p>
+                        </div>
+                        <span className="text-indigo-600 text-sm font-bold opacity-0 group-hover:opacity-100 transition-opacity">
+                          Load
+                        </span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            
+            <div className="p-6 border-t border-gray-200 bg-gray-50 flex justify-end">
+              <button
+                onClick={() => setIsLoadModelModalOpen(false)}
+                className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md font-bold hover:bg-gray-300 transition-colors"
+              >
+                Cancel
+              </button>
             </div>
           </div>
         </div>
