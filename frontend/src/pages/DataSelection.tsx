@@ -743,50 +743,50 @@ function DataSelectionCanvas() {
           <h1 className="text-2xl font-bold text-gray-900">Data Canvas</h1>
           <p className="text-sm text-gray-500 mt-1">Drag files onto the canvas and connect columns to join tables.</p>
         </div>
-        <div className="flex items-center space-x-3">
+        <div className="flex items-center space-x-2">
           <button
             onClick={() => setShowNewModelModal(true)}
-            className="flex items-center bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-md font-bold shadow-sm transition-colors"
+            className="flex items-center bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-2 rounded-md font-medium text-sm shadow-sm transition-colors whitespace-nowrap"
           >
-            <PlusCircle className="h-5 w-5 mr-2 text-indigo-500" />
+            <PlusCircle className="h-4 w-4 mr-2 text-indigo-500" />
             New
           </button>
           <button
             onClick={clearCanvas}
-            className="flex items-center bg-white hover:bg-red-50 text-red-600 px-4 py-2 rounded-md font-bold shadow-sm transition-colors border border-red-200"
+            className="flex items-center bg-white border border-red-200 hover:bg-red-50 text-red-600 px-3 py-2 rounded-md font-medium text-sm shadow-sm transition-colors whitespace-nowrap"
           >
-            <Eraser className="h-5 w-5 mr-2" />
+            <Eraser className="h-4 w-4 mr-2" />
             Clear Canvas
           </button>
           <button
             onClick={handlePreview}
-            className="flex items-center bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-md font-bold shadow-sm transition-colors border border-gray-300 disabled:opacity-50"
+            className="flex items-center bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md font-medium text-sm shadow-sm transition-colors border border-gray-300 disabled:opacity-50 whitespace-nowrap"
             disabled={selectedColumns.size === 0}
           >
-            <PlayCircle className="h-5 w-5 mr-2" />
+            <PlayCircle className="h-4 w-4 mr-2" />
             Preview
           </button>
           <button
             onClick={fetchSavedModels}
-            className="flex items-center bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md font-bold shadow-sm transition-colors disabled:opacity-50"
+            className="flex items-center bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-md font-medium text-sm shadow-sm transition-colors disabled:opacity-50 whitespace-nowrap"
           >
-            <ListTree className="h-5 w-5 mr-2" />
+            <ListTree className="h-4 w-4 mr-2" />
             Load Model
           </button>
           <button
             onClick={() => activeModel ? handleSaveModel() : setIsSaveModelModalOpen(true)}
-            className="flex items-center bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-bold shadow-sm transition-colors disabled:opacity-50"
+            className="flex items-center bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-md font-medium text-sm shadow-sm transition-colors disabled:opacity-50 whitespace-nowrap"
             disabled={selectedColumns.size === 0 && !activeModel}
           >
-            <Database className="h-5 w-5 mr-2" />
+            <Database className="h-4 w-4 mr-2" />
             {activeModel ? 'Save' : 'Save As'}
           </button>
           <button
             onClick={() => setIsGenerateModalOpen(true)}
-            className="flex items-center bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md font-bold shadow-sm transition-colors disabled:opacity-50"
+            className="flex items-center bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-md font-medium text-sm shadow-sm transition-colors disabled:opacity-50 whitespace-nowrap"
             disabled={selectedColumns.size === 0}
           >
-            <PlusCircle className="h-5 w-5 mr-2" />
+            <PlusCircle className="h-4 w-4 mr-2" />
             Generate Table
           </button>
         </div>
