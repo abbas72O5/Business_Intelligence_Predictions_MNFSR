@@ -37,6 +37,8 @@ function DataSelectionCanvas() {
   const [isGenerateModalOpen, setIsGenerateModalOpen] = useState(false);
   const [isSaveModelModalOpen, setIsSaveModelModalOpen] = useState(false);
   const [isLoadModelModalOpen, setIsLoadModelModalOpen] = useState(false);
+  const [activeModel, setActiveModel] = useState<any>(null);
+  const [showNewModelModal, setShowNewModelModal] = useState(false);
   const [savedModels, setSavedModels] = useState<any[]>([]);
   const [newTableName, setNewTableName] = useState('');
   const [newModelName, setNewModelName] = useState('');
@@ -528,25 +530,44 @@ function DataSelectionCanvas() {
   };
 
   const handleSaveModel = async () => {
-    if (!newModelName.trim()) {
-      setError('Please provide a model name.');
-      return;
-    }
-    setError('');
-    setLoading(true);
-    try {
-      const payload = { ...buildQueryPayload(), model_name: newModelName };
-      await axios.post('http://localhost:8000/query/saved_models', payload, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setIsSaveModelModalOpen(false);
-      setNewModelName('');
-      alert("Model saved successfully! You can now use it in Observations.");
-    } catch (err: any) {
-      const detail = err.response?.data?.detail;
-      setError(typeof detail === 'string' ? detail : JSON.stringify(detail) || 'Save Model failed');
-    } finally {
-      setLoading(false);
+    if (activeModel) {
+      // Update existing model
+      setLoading(true);
+      try {
+        const payload = buildQueryPayload();
+        await axios.put(`http://localhost:8000/query/saved_models/${activeModel.model_id}`, payload, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setErrorPopup({ title: 'Success', message: 'Model updated successfully!' });
+      } catch (err: any) {
+        const detail = err.response?.data?.detail;
+        setErrorPopup({ title: 'Error', message: typeof detail === 'string' ? detail : JSON.stringify(detail) || 'Update Model failed' });
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      // Create new model
+      if (!newModelName.trim()) {
+        setError('Please provide a model name.');
+        return;
+      }
+      setError('');
+      setLoading(true);
+      try {
+        const payload = { ...buildQueryPayload(), model_name: newModelName };
+        const response = await axios.post('http://localhost:8000/query/saved_models', payload, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setActiveModel(response.data);
+        setIsSaveModelModalOpen(false);
+        setNewModelName('');
+        setErrorPopup({ title: 'Success', message: 'Model saved successfully! You can now use it in Observations.' });
+      } catch (err: any) {
+        const detail = err.response?.data?.detail;
+        setError(typeof detail === 'string' ? detail : JSON.stringify(detail) || 'Save Model failed');
+      } finally {
+        setLoading(false);
+      }
     }
   };
 
@@ -654,6 +675,7 @@ function DataSelectionCanvas() {
       setEdges(newEdges);
     }, 50);
 
+    setActiveModel(model);
     setIsLoadModelModalOpen(false);
   };
 
@@ -708,6 +730,7 @@ function DataSelectionCanvas() {
         localStorage.removeItem('dataSelectionNodes');
         localStorage.removeItem('dataSelectionEdges');
         localStorage.removeItem('dataSelectionColumns');
+        setActiveModel(null);
         setConfirmAction(null);
       }
     });
@@ -721,6 +744,13 @@ function DataSelectionCanvas() {
           <p className="text-sm text-gray-500 mt-1">Drag files onto the canvas and connect columns to join tables.</p>
         </div>
         <div className="flex items-center space-x-3">
+          <button
+            onClick={() => setShowNewModelModal(true)}
+            className="flex items-center bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-md font-bold shadow-sm transition-colors"
+          >
+            <PlusCircle className="h-5 w-5 mr-2 text-indigo-500" />
+            New
+          </button>
           <button
             onClick={clearCanvas}
             className="flex items-center bg-white hover:bg-red-50 text-red-600 px-4 py-2 rounded-md font-bold shadow-sm transition-colors border border-red-200"
@@ -744,12 +774,12 @@ function DataSelectionCanvas() {
             Load Model
           </button>
           <button
-            onClick={() => setIsSaveModelModalOpen(true)}
+            onClick={() => activeModel ? handleSaveModel() : setIsSaveModelModalOpen(true)}
             className="flex items-center bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md font-bold shadow-sm transition-colors disabled:opacity-50"
-            disabled={selectedColumns.size === 0}
+            disabled={selectedColumns.size === 0 && !activeModel}
           >
             <Database className="h-5 w-5 mr-2" />
-            Save Model
+            {activeModel ? 'Save' : 'Save As'}
           </button>
           <button
             onClick={() => setIsGenerateModalOpen(true)}
@@ -1159,6 +1189,32 @@ function DataSelectionCanvas() {
               >
                 Cancel
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* New Model Modal */}
+      {showNewModelModal && (
+        <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
+          <div className="bg-white rounded-lg shadow-2xl w-96 p-6 border border-gray-200 pointer-events-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-800 flex items-center"><PlusCircle className="h-5 w-5 mr-2 text-indigo-500" /> New Model</h2>
+              <button onClick={() => setShowNewModelModal(false)} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
+            </div>
+            <p className="text-gray-600 text-sm mb-6">Are you sure you want to start a new model? Any unsaved changes will be lost.</p>
+            <div className="flex justify-end space-x-3">
+              <button onClick={() => setShowNewModelModal(false)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200">Cancel</button>
+              <button onClick={() => {
+                setNodes([]);
+                setEdges([]);
+                setSelectedColumns(new Map());
+                localStorage.removeItem('dataSelectionNodes');
+                localStorage.removeItem('dataSelectionEdges');
+                localStorage.removeItem('dataSelectionColumns');
+                setActiveModel(null);
+                setShowNewModelModal(false);
+              }} className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">Confirm</button>
             </div>
           </div>
         </div>

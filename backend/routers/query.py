@@ -424,6 +424,28 @@ async def save_model(request: SaveModelRequest, current_user = Depends(get_curre
     model_doc["_id"] = str(result.inserted_id)
     model_doc["id"] = model_doc["_id"]
     return model_doc
+
+@router.put("/saved_models/{model_id}", response_model=SavedModelMetadata)
+async def update_saved_model(model_id: str, request: QueryRequest, current_user = Depends(get_current_user)):
+    # Check if model exists and belongs to user
+    model = await db.saved_models.find_one({"model_id": model_id, "created_by": str(current_user["_id"])})
+    if not model:
+        raise HTTPException(status_code=404, detail="Model not found")
+        
+    update_data = {
+        "columns": [c.model_dump() for c in request.columns],
+        "joins": [j.model_dump() for j in (request.joins or [])],
+        "updated_at": datetime.utcnow()
+    }
+    
+    await db.saved_models.update_one(
+        {"model_id": model_id},
+        {"$set": update_data}
+    )
+    
+    updated_model = await db.saved_models.find_one({"model_id": model_id})
+    updated_model["id"] = str(updated_model["_id"])
+    return updated_model
 def generate_folium_map(df, lat_col, lon_col, val_col, map_type):
     import folium
     import math
