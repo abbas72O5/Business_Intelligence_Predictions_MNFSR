@@ -5,12 +5,16 @@ from datetime import datetime
 class ColumnMetadata(BaseModel):
     name: str
     type: str
+    unique_count: Optional[int] = None
+    min_val: Optional[Any] = None
+    max_val: Optional[Any] = None
 
 class TableMetadata(BaseModel):
     id: str
     table_id: str
     filename: str
     storage_path: str
+    row_count: Optional[int] = None
     columns: List[ColumnMetadata]
     department: str
     visibility: str = "private"

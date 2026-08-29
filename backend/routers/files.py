@@ -75,14 +75,37 @@ async def upload_file(file: UploadFile = File(...), current_user = Depends(get_c
             
         df.to_parquet(parquet_path, engine="pyarrow")
         
+        row_count = len(df)
         columns_meta = []
         for col, dtype in df.dtypes.items():
-            columns_meta.append(ColumnMetadata(name=str(col), type=map_dtype_to_string(dtype)).model_dump())
+            unique_count = df[col].nunique(dropna=True)
+            try:
+                min_val = df[col].min() if not df[col].isnull().all() else None
+                max_val = df[col].max() if not df[col].isnull().all() else None
+                if min_val is not None and max_val is not None:
+                    if 'datetime' in str(dtype):
+                        min_val = min_val.isoformat() if hasattr(min_val, 'isoformat') else str(min_val)
+                        max_val = max_val.isoformat() if hasattr(max_val, 'isoformat') else str(max_val)
+                    else:
+                        min_val = min_val.item() if hasattr(min_val, 'item') else min_val
+                        max_val = max_val.item() if hasattr(max_val, 'item') else max_val
+            except Exception:
+                min_val = None
+                max_val = None
+
+            columns_meta.append(ColumnMetadata(
+                name=str(col), 
+                type=map_dtype_to_string(dtype),
+                unique_count=int(unique_count),
+                min_val=min_val,
+                max_val=max_val
+            ).model_dump())
             
         table_doc = {
             "table_id": table_id,
             "filename": formatted_filename,
             "storage_path": parquet_path,
+            "row_count": row_count,
             "columns": columns_meta,
             "department": current_user.get("department") or "Global",
             "visibility": "private",
@@ -99,6 +122,7 @@ async def upload_file(file: UploadFile = File(...), current_user = Depends(get_c
                 filename=formatted_filename,
 
                 storage_path=parquet_path,
+                row_count=row_count,
                 columns=columns_meta,
                 department=table_doc["department"],
                 visibility=table_doc["visibility"],

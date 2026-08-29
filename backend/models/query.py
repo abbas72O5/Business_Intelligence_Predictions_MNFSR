@@ -29,6 +29,8 @@ class ObservationQueryRequest(BaseModel):
     lat_column: Optional[str] = None
     lon_column: Optional[str] = None
     val_column: Optional[str] = None
+    color_column: Optional[str] = None
+    size_column: Optional[str] = None
     label_column: Optional[str] = None
     map_type: Optional[str] = "bubble"
     table_columns: Optional[List[str]] = None

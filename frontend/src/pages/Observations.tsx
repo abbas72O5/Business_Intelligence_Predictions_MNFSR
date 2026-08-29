@@ -204,7 +204,57 @@ export default function Observations() {
       }
       newDataset = model ? { type: 'model', data: model } : null;
     }
-    updateChart(id, { selectedDataset: newDataset, xColumn: '', yColumn: '', colorColumn: '', sizeColumn: '', chartData: [] });
+    updateChart(id, { selectedDataset: newDataset, xColumn: '', yColumn: '', colorColumn: '', sizeColumn: '', valColumn: '', latColumn: '', lonColumn: '', labelColumn: '', tableColumns: [], chartData: [] });
+  };
+
+  const getValidationErrors = (chart: ChartConfig) => {
+    const errors: Record<string, string> = {};
+    if (!chart.selectedDataset) return errors;
+
+    const dataset = chart.selectedDataset.data;
+    const columns = chart.selectedDataset.type === 'table' ? dataset.columns : dataset.columns_mapped;
+    const getColMeta = (colName: string) => columns.find((c: any) => c.name === colName);
+
+    if (chart.chartType === 'pie') {
+      const xMeta = getColMeta(chart.xColumn);
+      if (xMeta && xMeta.unique_count && xMeta.unique_count > 12) {
+          errors.xColumn = "Warning: More than 12 unique items. Chart may become unreadable.";
+      }
+      const yMeta = getColMeta(chart.yColumn);
+      if (yMeta && yMeta.min_val !== undefined && yMeta.min_val !== null && yMeta.min_val < 0) {
+          errors.yColumn = "Error: Pie charts cannot display negative values.";
+      }
+    }
+
+    if (chart.chartType === 'scatter') {
+      const xMeta = getColMeta(chart.xColumn);
+      const yMeta = getColMeta(chart.yColumn);
+      if (xMeta && xMeta.type === 'String') errors.xColumn = "Error: Scatter requires numeric axes.";
+      if (yMeta && yMeta.type === 'String') errors.yColumn = "Error: Scatter requires numeric axes.";
+      
+      if (dataset.row_count && dataset.row_count > 5000) {
+          errors.dataset = "Warning: Dataset too dense. Random 5000 sample will be used.";
+      }
+    }
+
+    if (chart.chartType === 'heatmap') {
+      const xMeta = getColMeta(chart.xColumn);
+      if (xMeta && xMeta.unique_count && xMeta.unique_count > 20) {
+          errors.xColumn = "Error: Too many unique column values (>20). This risks memory explosion.";
+      }
+    }
+
+    if (chart.chartType === 'treemap') {
+      const yMeta = getColMeta(chart.yColumn);
+      if (yMeta && yMeta.min_val !== undefined && yMeta.min_val !== null && yMeta.min_val <= 0) {
+          errors.yColumn = "Warning: Negative or zero sizes will be filtered out.";
+      }
+      if (chart.xColumn && chart.xColumn === chart.colorColumn) {
+          errors.colorColumn = "Error: Hierarchy levels must be different.";
+      }
+    }
+
+    return errors;
   };
 
   const handleGenerateChart = async (chart: ChartConfig) => {
@@ -239,9 +289,11 @@ export default function Observations() {
         chart_type: chart.chartType,
         x_column: chart.xColumn || null,
         y_column: chart.yColumn || null,
-        lat_column: chart.latColumn || null,
-        lon_column: chart.lonColumn || null,
-        val_column: chart.valColumn || null,
+        lat_column: chart.chartType === 'map' ? (chart.latColumn || null) : null,
+        lon_column: chart.chartType === 'map' ? (chart.lonColumn || null) : null,
+        val_column: (chart.chartType === 'heatmap' || chart.chartType === 'map') ? (chart.valColumn || null) : null,
+        color_column: (chart.chartType === 'scatter' || chart.chartType === 'treemap') ? (chart.colorColumn || null) : null,
+        size_column: chart.chartType === 'scatter' ? (chart.sizeColumn || null) : null,
         label_column: chart.labelColumn || null,
         map_type: chart.chartType === 'map' ? chart.mapType : null,
         table_columns: chart.chartType === 'table' ? chart.tableColumns : null,
@@ -714,9 +766,16 @@ export default function Observations() {
                         const sizeLabel = 'Bubble Size (Numeric)';
                         const showVal = type === 'heatmap';
                         const valLabel = 'Values (Numeric)';
+                        
+                        const fieldErrors = getValidationErrors(configuringChart);
 
                         return (
                           <>
+                            {fieldErrors.dataset && (
+                                <div className="text-yellow-600 text-xs p-2 mb-3 bg-yellow-50 rounded-md border border-yellow-200">
+                                    {fieldErrors.dataset}
+                                </div>
+                            )}
                             <div className="flex items-center justify-between mb-1">
                               <label className="block text-sm font-medium text-gray-700">{xLabel}</label>
                         <button onClick={() => setShowXProps(!showXProps)} className="text-gray-400 hover:text-green-600 focus:outline-none" title="Axis Properties">
@@ -726,13 +785,14 @@ export default function Observations() {
                       <select
                         value={configuringChart.xColumn}
                         onChange={(e) => updateChart(configuringChart.id, { xColumn: e.target.value })}
-                        className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500 mb-2"
+                        className={`w-full border rounded-md p-2 text-sm mb-2 ${fieldErrors.xColumn ? (fieldErrors.xColumn.includes('Error') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-yellow-500 focus:ring-yellow-500 focus:border-yellow-500') : 'border-gray-300 focus:ring-green-500 focus:border-green-500'}`}
                       >
                         <option value="" disabled>Select column...</option>
                         {(configuringChart.selectedDataset.type === 'table' ? configuringChart.selectedDataset.data.columns : configuringChart.selectedDataset.data.columns_mapped).map((c: any) => (
                           <option key={c.name} value={c.name}>{c.name} {c.type !== 'Any' ? `(${c.type})` : ''}</option>
                         ))}
                       </select>
+                      {fieldErrors.xColumn && <p className={`text-xs mb-2 ${fieldErrors.xColumn.includes('Error') ? 'text-red-500' : 'text-yellow-600'}`}>{fieldErrors.xColumn}</p>}
 
                       {showXProps && (
                         <div className="bg-gray-50 border border-gray-200 rounded p-2 mb-3 grid grid-cols-2 gap-2 text-xs">
@@ -763,16 +823,17 @@ export default function Observations() {
                       <select
                         value={configuringChart.yColumn}
                         onChange={(e) => updateChart(configuringChart.id, { yColumn: e.target.value })}
-                        className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500 mb-2"
+                        className={`w-full border rounded-md p-2 text-sm mb-2 ${fieldErrors.yColumn ? (fieldErrors.yColumn.includes('Error') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-yellow-500 focus:ring-yellow-500 focus:border-yellow-500') : 'border-gray-300 focus:ring-green-500 focus:border-green-500'}`}
                       >
                         <option value="" disabled>Select column...</option>
                         {(configuringChart.selectedDataset.type === 'table'
-                          ? configuringChart.selectedDataset.data.columns.filter((c: any) => (configuringChart.groupBy && configuringChart.aggregation === 'COUNT') || c.type === 'Integer' || c.type === 'Float')
+                          ? configuringChart.selectedDataset.data.columns.filter((c: any) => type === 'heatmap' || (configuringChart.groupBy && configuringChart.aggregation === 'COUNT') || c.type === 'Integer' || c.type === 'Float')
                           : (configuringChart.selectedDataset.data.columns_mapped || [])
                         ).map((c: any) => (
                           <option key={c.name} value={c.name}>{c.name} {c.type !== 'Any' ? `(${c.type})` : ''}</option>
                         ))}
                       </select>
+                      {fieldErrors.yColumn && <p className={`text-xs mb-2 ${fieldErrors.yColumn.includes('Error') ? 'text-red-500' : 'text-yellow-600'}`}>{fieldErrors.yColumn}</p>}
 
                       {showYProps && (
                         <div className="bg-gray-50 border border-gray-200 rounded p-2 mt-2 grid grid-cols-2 gap-2 text-xs">
@@ -800,13 +861,14 @@ export default function Observations() {
                           <select
                             value={configuringChart.colorColumn || ''}
                             onChange={(e) => updateChart(configuringChart.id, { colorColumn: e.target.value })}
-                            className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500 mb-2"
+                            className={`w-full border rounded-md p-2 text-sm mb-2 ${fieldErrors.colorColumn ? (fieldErrors.colorColumn.includes('Error') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-yellow-500 focus:ring-yellow-500 focus:border-yellow-500') : 'border-gray-300 focus:ring-green-500 focus:border-green-500'}`}
                           >
                             <option value="">(None)</option>
-                            {(configuringChart.selectedDataset.type === 'table' ? configuringChart.selectedDataset.data.columns : configuringChart.selectedDataset.data.columns_mapped).map((c: any) => (
+                            {(configuringChart.selectedDataset.type === 'table' ? configuringChart.selectedDataset.data.columns : (configuringChart.selectedDataset.data.columns_mapped || [])).map((c: any) => (
                               <option key={c.name} value={c.name}>{c.name} {c.type !== 'Any' ? `(${c.type})` : ''}</option>
                             ))}
                           </select>
+                          {fieldErrors.colorColumn && <p className={`text-xs mb-2 ${fieldErrors.colorColumn.includes('Error') ? 'text-red-500' : 'text-yellow-600'}`}>{fieldErrors.colorColumn}</p>}
                         </div>
                       )}
 
@@ -905,7 +967,7 @@ export default function Observations() {
             <div className="p-4 border-t border-gray-200 bg-gray-50">
               <button
                 onClick={() => handleGenerateChart(configuringChart)}
-                disabled={loading[configuringChart.id] || !configuringChart.selectedDataset}
+                disabled={loading[configuringChart.id] || !configuringChart.selectedDataset || Object.values(getValidationErrors(configuringChart)).some(e => e.includes('Error'))}
                 className="w-full bg-green-600 text-white py-2 rounded-md font-bold hover:bg-green-700 transition-colors disabled:opacity-50"
               >
                 {loading[configuringChart.id] ? 'Processing...' : 'Generate & Save'}

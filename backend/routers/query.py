@@ -159,14 +159,37 @@ async def generate_table(request: GenerateRequest, current_user = Depends(get_cu
             elif 'bool' in dtype_str: return 'Boolean'
             else: return 'String'
 
+        row_count = len(df)
         columns_meta = []
         for col, dtype in df.dtypes.items():
-            columns_meta.append({"name": str(col), "type": map_dtype_to_string(dtype)})
+            unique_count = df[col].nunique(dropna=True)
+            try:
+                min_val = df[col].min() if not df[col].isnull().all() else None
+                max_val = df[col].max() if not df[col].isnull().all() else None
+                if min_val is not None and max_val is not None:
+                    if 'datetime' in str(dtype):
+                        min_val = min_val.isoformat() if hasattr(min_val, 'isoformat') else str(min_val)
+                        max_val = max_val.isoformat() if hasattr(max_val, 'isoformat') else str(max_val)
+                    else:
+                        min_val = min_val.item() if hasattr(min_val, 'item') else min_val
+                        max_val = max_val.item() if hasattr(max_val, 'item') else max_val
+            except Exception:
+                min_val = None
+                max_val = None
+
+            columns_meta.append({
+                "name": str(col), 
+                "type": map_dtype_to_string(dtype),
+                "unique_count": int(unique_count),
+                "min_val": min_val,
+                "max_val": max_val
+            })
             
         table_doc = {
             "table_id": table_id,
             "filename": f"{request.table_name}.parquet",
             "storage_path": parquet_path,
+            "row_count": row_count,
             "columns": columns_meta,
             "department": current_user.get("department") or "Global",
             "visibility": "private",
@@ -280,56 +303,82 @@ async def generate_observation(request: ObservationQueryRequest, current_user = 
             elif y_duck:
                 if y_duck == "BIGINT":
                     y_cast = f"TRY_CAST(TRY_CAST({y_cast} AS DOUBLE) AS BIGINT)"
-                else:
                     y_cast = f"TRY_CAST({y_cast} AS {y_duck})"
                     
             where_sql = f"WHERE {x_cast} IS NOT NULL AND {y_cast} IS NOT NULL"
             
+            # Additional safety constraints per chart type
+            if request.chart_type in ["pie", "treemap"]:
+                where_sql += f" AND {y_cast} > 0"
+                
+            # Base source based on dataset type
             if request.dataset_type == "model":
                 model_doc = await db.saved_models.find_one({"model_id": request.table_id})
                 if not model_doc:
                     raise HTTPException(status_code=404, detail="Model not found.")
-                    
                 from models.query import QueryColumn, JoinCondition
                 q_cols = [QueryColumn(**c) for c in model_doc["columns"]]
                 q_joins = [JoinCondition(**j) for j in model_doc["joins"]]
                 base_request = QueryRequest(columns=q_cols, joins=q_joins)
                 base_sql = await build_duckdb_query(base_request, current_user)
-                
-                if request.group_by and request.aggregation:
-                    agg_func = request.aggregation.upper()
-                    if agg_func not in ["SUM", "AVG", "COUNT", "MIN", "MAX"]:
-                        raise HTTPException(status_code=400, detail="Invalid aggregation function.")
-                    
-                    if request.group_axis == 'y':
-                        safe_x = f"TRY_CAST({x_cast} AS DOUBLE)" if agg_func in ["SUM", "AVG"] and not request.x_cast_type else x_cast
-                        sql = f"SELECT {agg_func}({safe_x}) as \"{request.x_column}\", {y_cast} as \"{request.y_column}\" FROM ({base_sql}) {where_sql} GROUP BY {y_cast} ORDER BY {y_cast} ASC LIMIT 1000"
-                    else:
-                        safe_y = f"TRY_CAST({y_cast} AS DOUBLE)" if agg_func in ["SUM", "AVG"] and not request.y_cast_type else y_cast
-                        sql = f"SELECT {x_cast} as \"{request.x_column}\", {agg_func}({safe_y}) as \"{request.y_column}\" FROM ({base_sql}) {where_sql} GROUP BY {x_cast} ORDER BY {x_cast} ASC LIMIT 1000"
-                else:
-                    sql = f"SELECT {x_cast} as \"{request.x_column}\", {y_cast} as \"{request.y_column}\" FROM ({base_sql}) {where_sql} LIMIT 1000"
-                    
+                source_sql = f"({base_sql})"
             else:
                 file_doc = await db.table_metadata.find_one({"table_id": request.table_id})
                 if not file_doc:
                     raise HTTPException(status_code=404, detail="Table not found.")
-                    
                 storage_path = file_doc["storage_path"]
+                source_sql = f"'{storage_path}'"
+
+            # Build query
+            if request.group_by and request.aggregation:
+                agg_func = request.aggregation.upper()
+                if agg_func not in ["SUM", "AVG", "COUNT", "MIN", "MAX"]:
+                    raise HTTPException(status_code=400, detail="Invalid aggregation function.")
                 
-                if request.group_by and request.aggregation:
-                    agg_func = request.aggregation.upper()
-                    if agg_func not in ["SUM", "AVG", "COUNT", "MIN", "MAX"]:
-                        raise HTTPException(status_code=400, detail="Invalid aggregation function.")
-                        
-                    if request.group_axis == 'y':
-                        safe_x = f"TRY_CAST({x_cast} AS DOUBLE)" if agg_func in ["SUM", "AVG"] and not request.x_cast_type else x_cast
-                        sql = f"SELECT {agg_func}({safe_x}) as \"{request.x_column}\", {y_cast} as \"{request.y_column}\" FROM '{storage_path}' {where_sql} GROUP BY {y_cast} ORDER BY {y_cast} ASC LIMIT 1000"
-                    else:
-                        safe_y = f"TRY_CAST({y_cast} AS DOUBLE)" if agg_func in ["SUM", "AVG"] and not request.y_cast_type else y_cast
-                        sql = f"SELECT {x_cast} as \"{request.x_column}\", {agg_func}({safe_y}) as \"{request.y_column}\" FROM '{storage_path}' {where_sql} GROUP BY {x_cast} ORDER BY {x_cast} ASC LIMIT 1000"
+                selects = []
+                group_bys = []
+                
+                # Handle X
+                if request.group_axis == 'y':
+                    safe_x = f"TRY_CAST({x_cast} AS DOUBLE)" if agg_func in ["SUM", "AVG"] and not request.x_cast_type else x_cast
+                    selects.append(f"{agg_func}({safe_x}) as \"{request.x_column}\"")
                 else:
-                    sql = f"SELECT {x_cast} as \"{request.x_column}\", {y_cast} as \"{request.y_column}\" FROM '{storage_path}' {where_sql} LIMIT 1000"
+                    selects.append(f"{x_cast} as \"{request.x_column}\"")
+                    group_bys.append(x_cast)
+                    
+                # Handle Y
+                if request.group_axis == 'y':
+                    selects.append(f"{y_cast} as \"{request.y_column}\"")
+                    group_bys.append(y_cast)
+                else:
+                    safe_y = f"TRY_CAST({y_cast} AS DOUBLE)" if agg_func in ["SUM", "AVG"] and not request.y_cast_type else y_cast
+                    selects.append(f"{agg_func}({safe_y}) as \"{request.y_column}\"")
+                    
+                # Handle Extra Columns
+                if request.color_column:
+                    selects.append(f"\"{request.color_column}\"")
+                    group_bys.append(f"\"{request.color_column}\"")
+                if request.size_column:
+                    selects.append(f"{agg_func}(TRY_CAST(\"{request.size_column}\" AS DOUBLE)) as \"{request.size_column}\"")
+                if request.val_column:
+                    val_agg = f"{agg_func}(TRY_CAST(\"{request.val_column}\" AS DOUBLE))"
+                    if request.chart_type == "heatmap":
+                        val_agg = f"COALESCE({val_agg}, 0)"
+                    selects.append(f"{val_agg} as \"{request.val_column}\"")
+                    
+                group_clause = f" GROUP BY {', '.join(group_bys)}" if group_bys else ""
+                order_clause = f" ORDER BY {group_bys[0]} ASC" if group_bys else ""
+                
+                limit_val = 5000 if request.chart_type == "scatter" else 2000
+                sql = f"SELECT {', '.join(selects)} FROM {source_sql} {where_sql}{group_clause}{order_clause} LIMIT {limit_val}"
+            else:
+                selects = [f"{x_cast} as \"{request.x_column}\"", f"{y_cast} as \"{request.y_column}\""]
+                if request.color_column: selects.append(f"\"{request.color_column}\"")
+                if request.size_column: selects.append(f"\"{request.size_column}\"")
+                if request.val_column: selects.append(f"\"{request.val_column}\"")
+                
+                limit_val = 5000 if request.chart_type == "scatter" else 2000
+                sql = f"SELECT {', '.join(selects)} FROM {source_sql} {where_sql} LIMIT {limit_val}"
             
         df = duckdb.query(sql).df()
         
