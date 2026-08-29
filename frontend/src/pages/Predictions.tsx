@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
-import { LineChart, LayoutDashboard, PanelRightOpen, X, GripVertical, Trash2, Layout, Loader2, Save, Download, FolderOpen } from 'lucide-react';
+import { LineChart, LayoutDashboard, PanelRightOpen, X, GripVertical, Trash2, Layout, Loader2, Save, Download, FolderOpen, PlusCircle } from 'lucide-react';
 import ChartRenderer from '../components/ChartRenderer';
 import type { ChartConfig } from '../components/ChartRenderer';
 import { useAuth } from '../context/AuthContext';
@@ -58,6 +58,15 @@ export default function Predictions() {
   useEffect(() => {
     localStorage.setItem('pred_canvas', JSON.stringify(canvasVisuals));
   }, [canvasVisuals]);
+
+  const [activeDashboard, setActiveDashboard] = useState<{id: string, name: string} | null>(() => {
+    const saved = localStorage.getItem('pred_activeDashboard');
+    return saved ? JSON.parse(saved) : null;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('pred_activeDashboard', JSON.stringify(activeDashboard));
+  }, [activeDashboard]);
 
   useEffect(() => {
     localStorage.setItem('pred_selected_dashboard', selectedDashboardId);
@@ -156,18 +165,30 @@ export default function Predictions() {
   };
 
   const saveDashboard = async () => {
-    if (!dashboardName) return;
+    if (!activeDashboard && !dashboardName) return;
     try {
-      await axios.post('http://localhost:8000/dashboards/', {
-        name: dashboardName,
-        type: 'prediction',
-        charts: canvasVisuals
-      }, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
-      setShowSaveModal(false);
-      setDashboardName('');
-      showToast("Prediction Dashboard saved successfully!");
+      if (activeDashboard) {
+        // Update existing dashboard
+        await axios.put(`http://localhost:8000/dashboards/${activeDashboard.id}`, {
+          charts: canvasVisuals
+        }, {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        });
+        showToast("Dashboard updated successfully!");
+      } else {
+        // Create new dashboard
+        const response = await axios.post('http://localhost:8000/dashboards/', {
+          name: dashboardName,
+          type: 'prediction',
+          charts: canvasVisuals
+        }, {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        });
+        setActiveDashboard({ id: response.data.dashboard_id, name: response.data.name });
+        setShowSaveModal(false);
+        setDashboardName('');
+        showToast("Prediction Dashboard saved successfully!");
+      }
     } catch (err) {
       console.error(err);
       showToast("Failed to save dashboard.", "error");
@@ -193,6 +214,7 @@ export default function Predictions() {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
       setCanvasVisuals(response.data.charts);
+      setActiveDashboard({ id: response.data.dashboard_id, name: response.data.name });
       setShowLoadModal(false);
       showToast("Dashboard loaded successfully!");
     } catch (err) {
@@ -526,11 +548,22 @@ export default function Predictions() {
           </div>
 
           <div className="flex items-center space-x-2">
-            <button onClick={() => setShowSaveModal(true)} className="flex items-center px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50">
-              <Save className="w-4 h-4 mr-2" /> Save
+            <button 
+              onClick={() => {
+                if (window.confirm("Are you sure you want to start a new dashboard? Unsaved changes will be lost.")) {
+                  setCanvasVisuals([]);
+                  setActiveDashboard(null);
+                }
+              }} 
+              className="flex items-center px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50"
+            >
+              <PlusCircle className="w-4 h-4 mr-2 text-indigo-500" /> New
             </button>
             <button onClick={openLoadModal} className="flex items-center px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50">
-              <FolderOpen className="w-4 h-4 mr-2" /> Load
+              <FolderOpen className="w-4 h-4 mr-2 text-blue-500" /> Load
+            </button>
+            <button onClick={() => activeDashboard ? saveDashboard() : setShowSaveModal(true)} className="flex items-center px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50">
+              <Save className="w-4 h-4 mr-2 text-green-500" /> {activeDashboard ? 'Save' : 'Save As'}
             </button>
             <div className="relative">
               <button onClick={() => setShowExportMenu(!showExportMenu)} className="flex items-center px-3 py-2 bg-green-700 text-white rounded-md shadow-sm text-sm font-medium hover:bg-green-800">

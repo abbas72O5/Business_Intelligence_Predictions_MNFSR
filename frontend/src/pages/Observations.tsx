@@ -385,17 +385,30 @@ export default function Observations() {
   };
 
   const saveDashboard = async () => {
-    if (!dashboardName) return;
+    if (!activeDashboard && !dashboardName) return;
     try {
-      await axios.post('http://localhost:8000/dashboards/', {
-        name: dashboardName,
-        charts: charts
-      }, {
-        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-      });
-      setShowSaveModal(false);
-      setDashboardName('');
-      showToast("Dashboard saved successfully!");
+      if (activeDashboard) {
+        // Update existing dashboard
+        await axios.put(`http://localhost:8000/dashboards/${activeDashboard.id}`, {
+          charts: charts
+        }, {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        });
+        showToast("Dashboard updated successfully!");
+      } else {
+        // Create new dashboard
+        const response = await axios.post('http://localhost:8000/dashboards/', {
+          name: dashboardName,
+          charts: charts,
+          type: 'observation'
+        }, {
+          headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
+        });
+        setActiveDashboard({ id: response.data.dashboard_id, name: response.data.name });
+        setShowSaveModal(false);
+        setDashboardName('');
+        showToast("Dashboard saved successfully!");
+      }
     } catch (err) {
       console.error(err);
       showToast("Failed to save dashboard.", "error");
@@ -421,6 +434,7 @@ export default function Observations() {
         headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
       });
       setCharts(response.data.charts);
+      setActiveDashboard({ id: response.data.dashboard_id, name: response.data.name });
       setShowLoadModal(false);
       showToast("Dashboard loaded successfully!");
     } catch (err) {
@@ -455,14 +469,28 @@ export default function Observations() {
         <h1 className="text-2xl font-bold text-gray-900">Visual Observations Dashboard</h1>
         <div className="flex space-x-3">
 
+          {/* New Dashboard */}
+          <button 
+            onClick={() => {
+              if (window.confirm("Are you sure you want to start a new dashboard? Unsaved changes will be lost.")) {
+                setCharts([]);
+                setActiveDashboard(null);
+                setConfiguringChartId(null);
+              }
+            }} 
+            className="flex items-center bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-md font-medium transition-colors"
+          >
+            <PlusCircle className="h-5 w-5 mr-2 text-indigo-500" /> New
+          </button>
+
           {/* Load Dashboard */}
           <button onClick={openLoadModal} className="flex items-center bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-md font-medium transition-colors">
             <FolderOpen className="h-5 w-5 mr-2 text-blue-500" /> Load
           </button>
 
           {/* Save Dashboard */}
-          <button onClick={() => setShowSaveModal(true)} className="flex items-center bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-md font-medium transition-colors">
-            <Save className="h-5 w-5 mr-2 text-green-500" /> Save
+          <button onClick={() => activeDashboard ? saveDashboard() : setShowSaveModal(true)} className="flex items-center bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-md font-medium transition-colors">
+            <Save className="h-5 w-5 mr-2 text-green-500" /> {activeDashboard ? 'Save' : 'Save As'}
           </button>
 
           {/* Export Dropdown */}
