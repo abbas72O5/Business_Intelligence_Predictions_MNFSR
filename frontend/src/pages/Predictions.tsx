@@ -153,6 +153,7 @@ export default function Predictions() {
   }, [token]);
 
   const [showSaveModal, setShowSaveModal] = useState(false);
+  const [showNewDashboardModal, setShowNewDashboardModal] = useState(false);
   const [dashboardName, setDashboardName] = useState('');
   const [showLoadModal, setShowLoadModal] = useState(false);
   const [savedDashboards, setSavedDashboards] = useState<any[]>([]);
@@ -549,12 +550,7 @@ export default function Predictions() {
 
           <div className="flex items-center space-x-2">
             <button 
-              onClick={() => {
-                if (window.confirm("Are you sure you want to start a new dashboard? Unsaved changes will be lost.")) {
-                  setCanvasVisuals([]);
-                  setActiveDashboard(null);
-                }
-              }} 
+              onClick={() => setShowNewDashboardModal(true)} 
               className="flex items-center px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50"
             >
               <PlusCircle className="w-4 h-4 mr-2 text-indigo-500" /> New
@@ -908,6 +904,27 @@ export default function Predictions() {
             </div>
             <div className="flex justify-end mt-4">
               <button onClick={() => setShowLoadModal(false)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* New Dashboard Modal */}
+      {showNewDashboardModal && (
+        <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
+          <div className="bg-white rounded-lg shadow-2xl w-96 p-6 border border-gray-200 pointer-events-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-800 flex items-center"><PlusCircle className="h-5 w-5 mr-2 text-indigo-500" /> New Dashboard</h2>
+              <button onClick={() => setShowNewDashboardModal(false)} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
+            </div>
+            <p className="text-gray-600 text-sm mb-6">Are you sure you want to start a new dashboard? Any unsaved changes will be lost.</p>
+            <div className="flex justify-end space-x-3">
+              <button onClick={() => setShowNewDashboardModal(false)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200">Cancel</button>
+              <button onClick={() => {
+                setCanvasVisuals([]);
+                setActiveDashboard(null);
+                setShowNewDashboardModal(false);
+              }} className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">Confirm</button>
             </div>
           </div>
         </div>

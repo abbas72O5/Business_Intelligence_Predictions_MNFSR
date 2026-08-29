@@ -59,7 +59,7 @@ export default function Observations() {
     return [];
   });
 
-  const [activeDashboard, setActiveDashboard] = useState<{id: string, name: string} | null>(() => {
+  const [activeDashboard, setActiveDashboard] = useState<{ id: string, name: string } | null>(() => {
     const saved = localStorage.getItem('obs_activeDashboard');
     return saved ? JSON.parse(saved) : null;
   });
@@ -80,6 +80,7 @@ export default function Observations() {
   const [showYProps, setShowYProps] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [showSaveModal, setShowSaveModal] = useState(false);
+  const [showNewDashboardModal, setShowNewDashboardModal] = useState(false);
   const [dashboardName, setDashboardName] = useState('');
   const [showLoadModal, setShowLoadModal] = useState(false);
   const [savedDashboards, setSavedDashboards] = useState<any[]>([]);
@@ -470,14 +471,8 @@ export default function Observations() {
         <div className="flex space-x-3">
 
           {/* New Dashboard */}
-          <button 
-            onClick={() => {
-              if (window.confirm("Are you sure you want to start a new dashboard? Unsaved changes will be lost.")) {
-                setCharts([]);
-                setActiveDashboard(null);
-                setConfiguringChartId(null);
-              }
-            }} 
+          <button
+            onClick={() => setShowNewDashboardModal(true)}
             className="flex items-center bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-md font-medium transition-colors"
           >
             <PlusCircle className="h-5 w-5 mr-2 text-indigo-500" /> New
@@ -713,332 +708,332 @@ export default function Observations() {
               {configuringChart.selectedDataset && (() => {
                 const fieldErrors = getValidationErrors(configuringChart);
                 return (
-                <>
-                  {/* Chart Type */}
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Chart Type</label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button onClick={() => updateChart(configuringChart.id, { chartType: 'bar' })} className={`flex items-center justify-center py-2 px-3 border rounded-md text-sm ${configuringChart.chartType === 'bar' ? 'bg-green-50 border-green-500 text-green-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-                        <BarChart2 className="h-4 w-4 mr-1" /> Bar
-                      </button>
-                      <button onClick={() => updateChart(configuringChart.id, { chartType: 'line' })} className={`flex items-center justify-center py-2 px-3 border rounded-md text-sm ${configuringChart.chartType === 'line' ? 'bg-green-50 border-green-500 text-green-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-                        <LineChart className="h-4 w-4 mr-1" /> Line
-                      </button>
-                      <button onClick={() => updateChart(configuringChart.id, { chartType: 'pie' })} className={`flex items-center justify-center py-2 px-3 border rounded-md text-sm ${configuringChart.chartType === 'pie' ? 'bg-green-50 border-green-500 text-green-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-                        <PieChart className="h-4 w-4 mr-1" /> Pie
-                      </button>
-                      <button onClick={() => updateChart(configuringChart.id, { chartType: 'scatter' })} className={`flex items-center justify-center py-2 px-3 border rounded-md text-sm ${configuringChart.chartType === 'scatter' ? 'bg-green-50 border-green-500 text-green-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-                        <ScatterChart className="h-4 w-4 mr-1" /> Scatter
-                      </button>
-                      <button onClick={() => updateChart(configuringChart.id, { chartType: 'table' })} className={`flex items-center justify-center py-2 px-3 border rounded-md text-sm ${configuringChart.chartType === 'table' ? 'bg-green-50 border-green-500 text-green-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-                        <Table className="h-4 w-4 mr-1" /> Table
-                      </button>
-                      <button onClick={() => updateChart(configuringChart.id, { chartType: 'heatmap' })} className={`flex items-center justify-center py-2 px-3 border rounded-md text-sm ${configuringChart.chartType === 'heatmap' ? 'bg-green-50 border-green-500 text-green-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-                        <Grid className="h-4 w-4 mr-1" /> Matrix
-                      </button>
-                      <button onClick={() => updateChart(configuringChart.id, { chartType: 'treemap' })} className={`flex items-center justify-center py-2 px-3 border rounded-md text-sm ${configuringChart.chartType === 'treemap' ? 'bg-green-50 border-green-500 text-green-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-                        <Network className="h-4 w-4 mr-1" /> Tree
-                      </button>
-                      <button onClick={() => updateChart(configuringChart.id, { chartType: 'map' })} className={`flex items-center justify-center py-2 px-3 border rounded-md text-sm ${configuringChart.chartType === 'map' ? 'bg-green-50 border-green-500 text-green-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
-                        <MapIcon className="h-4 w-4 mr-1" /> Map
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Axis Configuration */}
-                  {configuringChart.chartType === 'table' ? (
+                  <>
+                    {/* Chart Type */}
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Select Columns</label>
-                      <div className={`bg-white border ${fieldErrors?.tableColumns ? 'border-red-500' : 'border-gray-300'} rounded-md p-2 max-h-48 overflow-y-auto`}>
-                        {(configuringChart.selectedDataset.type === 'table' ? configuringChart.selectedDataset.data.columns : configuringChart.selectedDataset.data.columns_mapped).map((c: any) => {
-                          const isChecked = (configuringChart.tableColumns || []).includes(c.name);
-                          return (
-                            <label key={c.name} className="flex items-center space-x-2 py-1 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={isChecked}
-                                onChange={(e) => {
-                                  const currentCols = configuringChart.tableColumns || [];
-                                  if (e.target.checked) {
-                                    updateChart(configuringChart.id, { tableColumns: [...currentCols, c.name] });
-                                  } else {
-                                    updateChart(configuringChart.id, { tableColumns: currentCols.filter(col => col !== c.name) });
-                                  }
-                                }}
-                                className="rounded text-green-600 focus:ring-green-500"
-                              />
-                              <span className="text-sm text-gray-700">{c.name} {c.type !== 'Any' ? `(${c.type})` : ''}</span>
-                            </label>
-                          );
-                        })}
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Chart Type</label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button onClick={() => updateChart(configuringChart.id, { chartType: 'bar' })} className={`flex items-center justify-center py-2 px-3 border rounded-md text-sm ${configuringChart.chartType === 'bar' ? 'bg-green-50 border-green-500 text-green-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                          <BarChart2 className="h-4 w-4 mr-1" /> Bar
+                        </button>
+                        <button onClick={() => updateChart(configuringChart.id, { chartType: 'line' })} className={`flex items-center justify-center py-2 px-3 border rounded-md text-sm ${configuringChart.chartType === 'line' ? 'bg-green-50 border-green-500 text-green-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                          <LineChart className="h-4 w-4 mr-1" /> Line
+                        </button>
+                        <button onClick={() => updateChart(configuringChart.id, { chartType: 'pie' })} className={`flex items-center justify-center py-2 px-3 border rounded-md text-sm ${configuringChart.chartType === 'pie' ? 'bg-green-50 border-green-500 text-green-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                          <PieChart className="h-4 w-4 mr-1" /> Pie
+                        </button>
+                        <button onClick={() => updateChart(configuringChart.id, { chartType: 'scatter' })} className={`flex items-center justify-center py-2 px-3 border rounded-md text-sm ${configuringChart.chartType === 'scatter' ? 'bg-green-50 border-green-500 text-green-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                          <ScatterChart className="h-4 w-4 mr-1" /> Scatter
+                        </button>
+                        <button onClick={() => updateChart(configuringChart.id, { chartType: 'table' })} className={`flex items-center justify-center py-2 px-3 border rounded-md text-sm ${configuringChart.chartType === 'table' ? 'bg-green-50 border-green-500 text-green-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                          <Table className="h-4 w-4 mr-1" /> Table
+                        </button>
+                        <button onClick={() => updateChart(configuringChart.id, { chartType: 'heatmap' })} className={`flex items-center justify-center py-2 px-3 border rounded-md text-sm ${configuringChart.chartType === 'heatmap' ? 'bg-green-50 border-green-500 text-green-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                          <Grid className="h-4 w-4 mr-1" /> Matrix
+                        </button>
+                        <button onClick={() => updateChart(configuringChart.id, { chartType: 'treemap' })} className={`flex items-center justify-center py-2 px-3 border rounded-md text-sm ${configuringChart.chartType === 'treemap' ? 'bg-green-50 border-green-500 text-green-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                          <Network className="h-4 w-4 mr-1" /> Tree
+                        </button>
+                        <button onClick={() => updateChart(configuringChart.id, { chartType: 'map' })} className={`flex items-center justify-center py-2 px-3 border rounded-md text-sm ${configuringChart.chartType === 'map' ? 'bg-green-50 border-green-500 text-green-700' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}>
+                          <MapIcon className="h-4 w-4 mr-1" /> Map
+                        </button>
                       </div>
-                      {fieldErrors?.tableColumns && <p className="text-xs mt-2 text-red-500">{fieldErrors.tableColumns}</p>}
                     </div>
-                  ) : configuringChart.chartType === 'map' ? (
-                    <div>
-                      <div className="flex space-x-2 mb-4">
-                        <button onClick={() => updateChart(configuringChart.id, { mapType: 'bubble' })} className={`flex-1 py-1.5 text-xs font-medium border rounded ${configuringChart.mapType === 'bubble' ? 'bg-green-100 border-green-500 text-green-800' : 'bg-gray-50 border-gray-200 text-gray-600'}`}>Bubble Map</button>
-                        <button onClick={() => updateChart(configuringChart.id, { mapType: 'heat' })} className={`flex-1 py-1.5 text-xs font-medium border rounded ${configuringChart.mapType === 'heat' ? 'bg-green-100 border-green-500 text-green-800' : 'bg-gray-50 border-gray-200 text-gray-600'}`}>Heat Map</button>
-                      </div>
 
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Latitude Field (Numeric)</label>
-                      <select value={configuringChart.latColumn || ''} onChange={(e) => updateChart(configuringChart.id, { latColumn: e.target.value })} className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500 mb-3">
-                        <option value="" disabled>Select column...</option>
-                        {(configuringChart.selectedDataset.type === 'table' ? configuringChart.selectedDataset.data.columns : configuringChart.selectedDataset.data.columns_mapped).map((c: any) => (
-                          <option key={c.name} value={c.name}>{c.name}</option>
-                        ))}
-                      </select>
-
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Longitude Field (Numeric)</label>
-                      <select value={configuringChart.lonColumn || ''} onChange={(e) => updateChart(configuringChart.id, { lonColumn: e.target.value })} className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500 mb-3">
-                        <option value="" disabled>Select column...</option>
-                        {(configuringChart.selectedDataset.type === 'table' ? configuringChart.selectedDataset.data.columns : configuringChart.selectedDataset.data.columns_mapped).map((c: any) => (
-                          <option key={c.name} value={c.name}>{c.name}</option>
-                        ))}
-                      </select>
-
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Value/Size Field (Numeric)</label>
-                      <select value={configuringChart.valColumn || ''} onChange={(e) => updateChart(configuringChart.id, { valColumn: e.target.value })} className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500 mb-3">
-                        <option value="" disabled>Select column...</option>
-                        {(configuringChart.selectedDataset.type === 'table' ? configuringChart.selectedDataset.data.columns : configuringChart.selectedDataset.data.columns_mapped).map((c: any) => (
-                          <option key={c.name} value={c.name}>{c.name}</option>
-                        ))}
-                      </select>
-
-                      <label className="block text-sm font-medium text-gray-700 mb-1">Label Field (String)</label>
-                      <select value={configuringChart.labelColumn || ''} onChange={(e) => updateChart(configuringChart.id, { labelColumn: e.target.value })} className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500 mb-3">
-                        <option value="">(None)</option>
-                        {(configuringChart.selectedDataset.type === 'table' ? configuringChart.selectedDataset.data.columns : configuringChart.selectedDataset.data.columns_mapped).map((c: any) => (
-                          <option key={c.name} value={c.name}>{c.name}</option>
-                        ))}
-                      </select>
-
-                      <label className="flex items-center space-x-2 mt-4 cursor-pointer">
-                        <input type="checkbox" checked={configuringChart.groupBy} onChange={(e) => updateChart(configuringChart.id, { groupBy: e.target.checked })} className="rounded text-green-600 focus:ring-green-500" />
-                        <span className="text-sm font-medium text-gray-700">Aggregate Multiple Points</span>
-                      </label>
-                      {configuringChart.groupBy && (
-                        <select value={configuringChart.aggregation} onChange={(e) => updateChart(configuringChart.id, { aggregation: e.target.value })} className="w-full mt-2 border border-gray-300 rounded-md p-2 text-sm">
-                          <option value="SUM">SUM</option>
-                          <option value="AVG">AVERAGE</option>
-                          <option value="MAX">MAX</option>
-                          <option value="MIN">MIN</option>
-                          <option value="COUNT">COUNT</option>
-                        </select>
-                      )}
-                    </div>
-                  ) : (
-                    <div>
-                      {(() => {
-                        const type = configuringChart.chartType;
-                        const xLabel = type === 'pie' ? 'Legend (Category)' : type === 'heatmap' ? 'Columns (Category)' : type === 'treemap' ? 'Main Category (Category)' : 'X-Axis (Category)';
-                        const yLabel = type === 'pie' ? 'Values (Numeric)' : type === 'heatmap' ? 'Rows (Category)' : type === 'treemap' ? 'Box Size (Numeric)' : 'Y-Axis (Value)';
-
-                        const showColor = type === 'scatter' || type === 'treemap';
-                        const colorLabel = type === 'scatter' ? 'Color By (Category)' : 'Sub-Category (Category)';
-                        const showSize = type === 'scatter';
-                        const sizeLabel = 'Bubble Size (Numeric)';
-                        const showVal = type === 'heatmap';
-                        const valLabel = 'Values (Numeric)';
-
-                        return (
-                          <>
-                            {fieldErrors.dataset && (
-                              <div className="text-yellow-600 text-xs p-2 mb-3 bg-yellow-50 rounded-md border border-yellow-200">
-                                {fieldErrors.dataset}
-                              </div>
-                            )}
-                            <div className="flex items-center justify-between mb-1">
-                              <label className="block text-sm font-medium text-gray-700">{xLabel}</label>
-                              <button onClick={() => setShowXProps(!showXProps)} className="text-gray-400 hover:text-green-600 focus:outline-none" title="Axis Properties">
-                                <Settings className="h-4 w-4" />
-                              </button>
-                            </div>
-                            <select
-                              value={configuringChart.xColumn}
-                              onChange={(e) => updateChart(configuringChart.id, { xColumn: e.target.value })}
-                              className={`w-full border rounded-md p-2 text-sm mb-2 ${fieldErrors.xColumn ? (fieldErrors.xColumn.includes('Error') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-yellow-500 focus:ring-yellow-500 focus:border-yellow-500') : 'border-gray-300 focus:ring-green-500 focus:border-green-500'}`}
-                            >
-                              <option value="" disabled>Select column...</option>
-                              {(configuringChart.selectedDataset.type === 'table' 
-                                ? configuringChart.selectedDataset.data.columns.filter((c: any) => type !== 'heatmap' || c.type === 'String' || c.type === 'Integer') 
-                                : configuringChart.selectedDataset.data.columns_mapped).map((c: any) => (
-                                <option key={c.name} value={c.name}>{c.name} {c.type !== 'Any' ? `(${c.type})` : ''}</option>
-                              ))}
-                            </select>
-                            {fieldErrors.xColumn && <p className={`text-xs mb-2 ${fieldErrors.xColumn.includes('Error') ? 'text-red-500' : 'text-yellow-600'}`}>{fieldErrors.xColumn}</p>}
-
-                            {showXProps && (
-                              <div className="bg-gray-50 border border-gray-200 rounded p-2 mb-3 grid grid-cols-2 gap-2 text-xs">
-                                <div>
-                                  <label className="block text-gray-600 mb-1">Display Label</label>
-                                  <input type="text" value={configuringChart.xAxisProps.label} onChange={e => updateChart(configuringChart.id, { xAxisProps: { ...configuringChart.xAxisProps, label: e.target.value } })} className="w-full border border-gray-300 rounded px-2 py-1" placeholder="e.g. Dept" />
-                                </div>
-                                <div>
-                                  <label className="block text-gray-600 mb-1">Data Type Cast</label>
-                                  <select value={configuringChart.xAxisProps.type} onChange={e => updateChart(configuringChart.id, { xAxisProps: { ...configuringChart.xAxisProps, type: e.target.value } })} className="w-full border border-gray-300 rounded px-2 py-1 bg-white">
-                                    <option value="">(None)</option>
-                                    <option value="String">String</option>
-                                    <option value="Integer">Integer</option>
-                                    <option value="Float">Float</option>
-                                    <option value="Boolean">Boolean</option>
-                                    <option value="Date">Date</option>
-                                  </select>
-                                </div>
-                              </div>
-                            )}
-
-                            <div className="flex items-center justify-between mb-1 mt-3">
-                              <label className="block text-sm font-medium text-gray-700">{yLabel}</label>
-                              <button onClick={() => setShowYProps(!showYProps)} className="text-gray-400 hover:text-green-600 focus:outline-none" title="Axis Properties">
-                                <Settings className="h-4 w-4" />
-                              </button>
-                            </div>
-                            <select
-                              value={configuringChart.yColumn}
-                              onChange={(e) => updateChart(configuringChart.id, { yColumn: e.target.value })}
-                              className={`w-full border rounded-md p-2 text-sm mb-2 ${fieldErrors.yColumn ? (fieldErrors.yColumn.includes('Error') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-yellow-500 focus:ring-yellow-500 focus:border-yellow-500') : 'border-gray-300 focus:ring-green-500 focus:border-green-500'}`}
-                            >
-                              <option value="" disabled>Select column...</option>
-                              {(configuringChart.selectedDataset.type === 'table'
-                                ? configuringChart.selectedDataset.data.columns.filter((c: any) => type === 'heatmap' ? (c.type === 'String' || c.type === 'Integer') : ((configuringChart.groupBy && configuringChart.aggregation === 'COUNT') || c.type === 'Integer' || c.type === 'Float'))
-                                : (configuringChart.selectedDataset.data.columns_mapped || [])
-                              ).map((c: any) => (
-                                <option key={c.name} value={c.name}>{c.name} {c.type !== 'Any' ? `(${c.type})` : ''}</option>
-                              ))}
-                            </select>
-                            {fieldErrors.yColumn && <p className={`text-xs mb-2 ${fieldErrors.yColumn.includes('Error') ? 'text-red-500' : 'text-yellow-600'}`}>{fieldErrors.yColumn}</p>}
-
-                            {showYProps && (
-                              <div className="bg-gray-50 border border-gray-200 rounded p-2 mt-2 grid grid-cols-2 gap-2 text-xs">
-                                <div>
-                                  <label className="block text-gray-600 mb-1">Display Label</label>
-                                  <input type="text" value={configuringChart.yAxisProps.label} onChange={e => updateChart(configuringChart.id, { yAxisProps: { ...configuringChart.yAxisProps, label: e.target.value } })} className="w-full border border-gray-300 rounded px-2 py-1" placeholder="e.g. Value" />
-                                </div>
-                                <div>
-                                  <label className="block text-gray-600 mb-1">Data Type Cast</label>
-                                  <select value={configuringChart.yAxisProps.type} onChange={e => updateChart(configuringChart.id, { yAxisProps: { ...configuringChart.yAxisProps, type: e.target.value } })} className="w-full border border-gray-300 rounded px-2 py-1 bg-white">
-                                    <option value="">(None)</option>
-                                    <option value="String">String</option>
-                                    <option value="Integer">Integer</option>
-                                    <option value="Float">Float</option>
-                                    <option value="Boolean">Boolean</option>
-                                    <option value="Date">Date</option>
-                                  </select>
-                                </div>
-                              </div>
-                            )}
-
-                            {showColor && (
-                              <div className="mt-3">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">{colorLabel}</label>
-                                <select
-                                  value={configuringChart.colorColumn || ''}
-                                  onChange={(e) => updateChart(configuringChart.id, { colorColumn: e.target.value })}
-                                  className={`w-full border rounded-md p-2 text-sm mb-2 ${fieldErrors.colorColumn ? (fieldErrors.colorColumn.includes('Error') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-yellow-500 focus:ring-yellow-500 focus:border-yellow-500') : 'border-gray-300 focus:ring-green-500 focus:border-green-500'}`}
-                                >
-                                  <option value="">(None)</option>
-                                  {(configuringChart.selectedDataset.type === 'table' ? configuringChart.selectedDataset.data.columns : (configuringChart.selectedDataset.data.columns_mapped || [])).map((c: any) => (
-                                    <option key={c.name} value={c.name}>{c.name} {c.type !== 'Any' ? `(${c.type})` : ''}</option>
-                                  ))}
-                                </select>
-                                {fieldErrors.colorColumn && <p className={`text-xs mb-2 ${fieldErrors.colorColumn.includes('Error') ? 'text-red-500' : 'text-yellow-600'}`}>{fieldErrors.colorColumn}</p>}
-                              </div>
-                            )}
-
-                            {showSize && (
-                              <div className="mt-3">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">{sizeLabel}</label>
-                                <select
-                                  value={configuringChart.sizeColumn || ''}
-                                  onChange={(e) => updateChart(configuringChart.id, { sizeColumn: e.target.value })}
-                                  className={`w-full border rounded-md p-2 text-sm mb-2 ${fieldErrors.sizeColumn ? (fieldErrors.sizeColumn.includes('Error') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-yellow-500 focus:ring-yellow-500 focus:border-yellow-500') : 'border-gray-300 focus:ring-green-500 focus:border-green-500'}`}
-                                >
-                                  <option value="">(None)</option>
-                                  {(configuringChart.selectedDataset.type === 'table' ? configuringChart.selectedDataset.data.columns.filter((c: any) => c.type === 'Integer' || c.type === 'Float') : (configuringChart.selectedDataset.data.columns_mapped || [])).map((c: any) => (
-                                    <option key={c.name} value={c.name}>{c.name} {c.type !== 'Any' ? `(${c.type})` : ''}</option>
-                                  ))}
-                                </select>
-                                {fieldErrors.sizeColumn && <p className={`text-xs mb-2 ${fieldErrors.sizeColumn.includes('Error') ? 'text-red-500' : 'text-yellow-600'}`}>{fieldErrors.sizeColumn}</p>}
-                              </div>
-                            )}
-
-                            {showVal && (
-                              <div className="mt-3">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">{valLabel}</label>
-                                <select
-                                  value={configuringChart.valColumn || ''}
-                                  onChange={(e) => updateChart(configuringChart.id, { valColumn: e.target.value })}
-                                  className={`w-full border rounded-md p-2 text-sm mb-2 ${fieldErrors.valColumn ? (fieldErrors.valColumn.includes('Error') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-yellow-500 focus:ring-yellow-500 focus:border-yellow-500') : 'border-gray-300 focus:ring-green-500 focus:border-green-500'}`}
-                                >
-                                  <option value="">(None)</option>
-                                  {(configuringChart.selectedDataset.type === 'table' ? configuringChart.selectedDataset.data.columns.filter((c: any) => c.type === 'Integer' || c.type === 'Float') : (configuringChart.selectedDataset.data.columns_mapped || [])).map((c: any) => (
-                                    <option key={c.name} value={c.name}>{c.name} {c.type !== 'Any' ? `(${c.type})` : ''}</option>
-                                  ))}
-                                </select>
-                                {fieldErrors.valColumn && <p className={`text-xs mb-2 ${fieldErrors.valColumn.includes('Error') ? 'text-red-500' : 'text-yellow-600'}`}>{fieldErrors.valColumn}</p>}
-                              </div>
-                            )}
-
-                          </>
-                        );
-                      })()}
-                    </div>
-                  )}
-
-                  {/* Data Operations */}
-                  {configuringChart.chartType !== 'table' && configuringChart.chartType !== 'map' && (
-                    <div className="pt-4 border-t border-gray-200">
-                      <div className="flex items-center justify-between mb-3">
-                        <label className="text-sm font-medium text-gray-700 flex items-center">
-                          <Filter className="h-4 w-4 mr-1" /> Group By
-                        </label>
-                        <input
-                          type="checkbox"
-                          checked={configuringChart.groupBy}
-                          onChange={(e) => updateChart(configuringChart.id, { groupBy: e.target.checked })}
-                          className="h-4 w-4 text-green-600 rounded focus:ring-green-500 cursor-pointer"
-                        />
-                      </div>
-
-                      {configuringChart.groupBy && (
-                        <div>
-                          <label className="block text-sm font-medium text-gray-700 mb-1">Aggregation Function</label>
-                          <select
-                            value={configuringChart.aggregation}
-                            onChange={(e) => updateChart(configuringChart.id, { aggregation: e.target.value })}
-                            className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500 mb-3"
-                          >
-                            <option value="SUM">Sum (Total)</option>
-                            <option value="AVG">Average</option>
-                            <option value="COUNT">Count</option>
-                            <option value="MIN">Minimum</option>
-                            <option value="MAX">Maximum</option>
-                          </select>
-
-                          <label className="block text-sm font-medium text-gray-700 mb-1">
-                            {configuringChart.chartType === 'heatmap' ? 'Grouping Field' : 'Grouping Axis'}
-                          </label>
-                          <select
-                            value={configuringChart.groupAxis || 'x'}
-                            onChange={(e) => updateChart(configuringChart.id, { groupAxis: e.target.value as 'x' | 'y' })}
-                            className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500"
-                          >
-                            <option value="x">{configuringChart.chartType === 'heatmap' ? 'Columns' : 'X-Axis'}</option>
-                            <option value="y">{configuringChart.chartType === 'heatmap' ? 'Rows' : 'Y-Axis'}</option>
-                          </select>
+                    {/* Axis Configuration */}
+                    {configuringChart.chartType === 'table' ? (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Select Columns</label>
+                        <div className={`bg-white border ${fieldErrors?.tableColumns ? 'border-red-500' : 'border-gray-300'} rounded-md p-2 max-h-48 overflow-y-auto`}>
+                          {(configuringChart.selectedDataset.type === 'table' ? configuringChart.selectedDataset.data.columns : configuringChart.selectedDataset.data.columns_mapped).map((c: any) => {
+                            const isChecked = (configuringChart.tableColumns || []).includes(c.name);
+                            return (
+                              <label key={c.name} className="flex items-center space-x-2 py-1 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={(e) => {
+                                    const currentCols = configuringChart.tableColumns || [];
+                                    if (e.target.checked) {
+                                      updateChart(configuringChart.id, { tableColumns: [...currentCols, c.name] });
+                                    } else {
+                                      updateChart(configuringChart.id, { tableColumns: currentCols.filter(col => col !== c.name) });
+                                    }
+                                  }}
+                                  className="rounded text-green-600 focus:ring-green-500"
+                                />
+                                <span className="text-sm text-gray-700">{c.name} {c.type !== 'Any' ? `(${c.type})` : ''}</span>
+                              </label>
+                            );
+                          })}
                         </div>
-                      )}
-                    </div>
-                  )}
+                        {fieldErrors?.tableColumns && <p className="text-xs mt-2 text-red-500">{fieldErrors.tableColumns}</p>}
+                      </div>
+                    ) : configuringChart.chartType === 'map' ? (
+                      <div>
+                        <div className="flex space-x-2 mb-4">
+                          <button onClick={() => updateChart(configuringChart.id, { mapType: 'bubble' })} className={`flex-1 py-1.5 text-xs font-medium border rounded ${configuringChart.mapType === 'bubble' ? 'bg-green-100 border-green-500 text-green-800' : 'bg-gray-50 border-gray-200 text-gray-600'}`}>Bubble Map</button>
+                          <button onClick={() => updateChart(configuringChart.id, { mapType: 'heat' })} className={`flex-1 py-1.5 text-xs font-medium border rounded ${configuringChart.mapType === 'heat' ? 'bg-green-100 border-green-500 text-green-800' : 'bg-gray-50 border-gray-200 text-gray-600'}`}>Heat Map</button>
+                        </div>
 
-                  {error[configuringChart.id] && (
-                    <div className="text-red-600 text-sm p-2 bg-red-50 rounded-md border border-red-200">
-                      {error[configuringChart.id]}
-                    </div>
-                  )}
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Latitude Field (Numeric)</label>
+                        <select value={configuringChart.latColumn || ''} onChange={(e) => updateChart(configuringChart.id, { latColumn: e.target.value })} className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500 mb-3">
+                          <option value="" disabled>Select column...</option>
+                          {(configuringChart.selectedDataset.type === 'table' ? configuringChart.selectedDataset.data.columns : configuringChart.selectedDataset.data.columns_mapped).map((c: any) => (
+                            <option key={c.name} value={c.name}>{c.name}</option>
+                          ))}
+                        </select>
 
-                </>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Longitude Field (Numeric)</label>
+                        <select value={configuringChart.lonColumn || ''} onChange={(e) => updateChart(configuringChart.id, { lonColumn: e.target.value })} className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500 mb-3">
+                          <option value="" disabled>Select column...</option>
+                          {(configuringChart.selectedDataset.type === 'table' ? configuringChart.selectedDataset.data.columns : configuringChart.selectedDataset.data.columns_mapped).map((c: any) => (
+                            <option key={c.name} value={c.name}>{c.name}</option>
+                          ))}
+                        </select>
+
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Value/Size Field (Numeric)</label>
+                        <select value={configuringChart.valColumn || ''} onChange={(e) => updateChart(configuringChart.id, { valColumn: e.target.value })} className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500 mb-3">
+                          <option value="" disabled>Select column...</option>
+                          {(configuringChart.selectedDataset.type === 'table' ? configuringChart.selectedDataset.data.columns : configuringChart.selectedDataset.data.columns_mapped).map((c: any) => (
+                            <option key={c.name} value={c.name}>{c.name}</option>
+                          ))}
+                        </select>
+
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Label Field (String)</label>
+                        <select value={configuringChart.labelColumn || ''} onChange={(e) => updateChart(configuringChart.id, { labelColumn: e.target.value })} className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500 mb-3">
+                          <option value="">(None)</option>
+                          {(configuringChart.selectedDataset.type === 'table' ? configuringChart.selectedDataset.data.columns : configuringChart.selectedDataset.data.columns_mapped).map((c: any) => (
+                            <option key={c.name} value={c.name}>{c.name}</option>
+                          ))}
+                        </select>
+
+                        <label className="flex items-center space-x-2 mt-4 cursor-pointer">
+                          <input type="checkbox" checked={configuringChart.groupBy} onChange={(e) => updateChart(configuringChart.id, { groupBy: e.target.checked })} className="rounded text-green-600 focus:ring-green-500" />
+                          <span className="text-sm font-medium text-gray-700">Aggregate Multiple Points</span>
+                        </label>
+                        {configuringChart.groupBy && (
+                          <select value={configuringChart.aggregation} onChange={(e) => updateChart(configuringChart.id, { aggregation: e.target.value })} className="w-full mt-2 border border-gray-300 rounded-md p-2 text-sm">
+                            <option value="SUM">SUM</option>
+                            <option value="AVG">AVERAGE</option>
+                            <option value="MAX">MAX</option>
+                            <option value="MIN">MIN</option>
+                            <option value="COUNT">COUNT</option>
+                          </select>
+                        )}
+                      </div>
+                    ) : (
+                      <div>
+                        {(() => {
+                          const type = configuringChart.chartType;
+                          const xLabel = type === 'pie' ? 'Legend (Category)' : type === 'heatmap' ? 'Columns (Category)' : type === 'treemap' ? 'Main Category (Category)' : 'X-Axis (Category)';
+                          const yLabel = type === 'pie' ? 'Values (Numeric)' : type === 'heatmap' ? 'Rows (Category)' : type === 'treemap' ? 'Box Size (Numeric)' : 'Y-Axis (Value)';
+
+                          const showColor = type === 'scatter' || type === 'treemap';
+                          const colorLabel = type === 'scatter' ? 'Color By (Category)' : 'Sub-Category (Category)';
+                          const showSize = type === 'scatter';
+                          const sizeLabel = 'Bubble Size (Numeric)';
+                          const showVal = type === 'heatmap';
+                          const valLabel = 'Values (Numeric)';
+
+                          return (
+                            <>
+                              {fieldErrors.dataset && (
+                                <div className="text-yellow-600 text-xs p-2 mb-3 bg-yellow-50 rounded-md border border-yellow-200">
+                                  {fieldErrors.dataset}
+                                </div>
+                              )}
+                              <div className="flex items-center justify-between mb-1">
+                                <label className="block text-sm font-medium text-gray-700">{xLabel}</label>
+                                <button onClick={() => setShowXProps(!showXProps)} className="text-gray-400 hover:text-green-600 focus:outline-none" title="Axis Properties">
+                                  <Settings className="h-4 w-4" />
+                                </button>
+                              </div>
+                              <select
+                                value={configuringChart.xColumn}
+                                onChange={(e) => updateChart(configuringChart.id, { xColumn: e.target.value })}
+                                className={`w-full border rounded-md p-2 text-sm mb-2 ${fieldErrors.xColumn ? (fieldErrors.xColumn.includes('Error') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-yellow-500 focus:ring-yellow-500 focus:border-yellow-500') : 'border-gray-300 focus:ring-green-500 focus:border-green-500'}`}
+                              >
+                                <option value="" disabled>Select column...</option>
+                                {(configuringChart.selectedDataset.type === 'table'
+                                  ? configuringChart.selectedDataset.data.columns.filter((c: any) => type !== 'heatmap' || c.type === 'String' || c.type === 'Integer')
+                                  : configuringChart.selectedDataset.data.columns_mapped).map((c: any) => (
+                                    <option key={c.name} value={c.name}>{c.name} {c.type !== 'Any' ? `(${c.type})` : ''}</option>
+                                  ))}
+                              </select>
+                              {fieldErrors.xColumn && <p className={`text-xs mb-2 ${fieldErrors.xColumn.includes('Error') ? 'text-red-500' : 'text-yellow-600'}`}>{fieldErrors.xColumn}</p>}
+
+                              {showXProps && (
+                                <div className="bg-gray-50 border border-gray-200 rounded p-2 mb-3 grid grid-cols-2 gap-2 text-xs">
+                                  <div>
+                                    <label className="block text-gray-600 mb-1">Display Label</label>
+                                    <input type="text" value={configuringChart.xAxisProps.label} onChange={e => updateChart(configuringChart.id, { xAxisProps: { ...configuringChart.xAxisProps, label: e.target.value } })} className="w-full border border-gray-300 rounded px-2 py-1" placeholder="e.g. Dept" />
+                                  </div>
+                                  <div>
+                                    <label className="block text-gray-600 mb-1">Data Type Cast</label>
+                                    <select value={configuringChart.xAxisProps.type} onChange={e => updateChart(configuringChart.id, { xAxisProps: { ...configuringChart.xAxisProps, type: e.target.value } })} className="w-full border border-gray-300 rounded px-2 py-1 bg-white">
+                                      <option value="">(None)</option>
+                                      <option value="String">String</option>
+                                      <option value="Integer">Integer</option>
+                                      <option value="Float">Float</option>
+                                      <option value="Boolean">Boolean</option>
+                                      <option value="Date">Date</option>
+                                    </select>
+                                  </div>
+                                </div>
+                              )}
+
+                              <div className="flex items-center justify-between mb-1 mt-3">
+                                <label className="block text-sm font-medium text-gray-700">{yLabel}</label>
+                                <button onClick={() => setShowYProps(!showYProps)} className="text-gray-400 hover:text-green-600 focus:outline-none" title="Axis Properties">
+                                  <Settings className="h-4 w-4" />
+                                </button>
+                              </div>
+                              <select
+                                value={configuringChart.yColumn}
+                                onChange={(e) => updateChart(configuringChart.id, { yColumn: e.target.value })}
+                                className={`w-full border rounded-md p-2 text-sm mb-2 ${fieldErrors.yColumn ? (fieldErrors.yColumn.includes('Error') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-yellow-500 focus:ring-yellow-500 focus:border-yellow-500') : 'border-gray-300 focus:ring-green-500 focus:border-green-500'}`}
+                              >
+                                <option value="" disabled>Select column...</option>
+                                {(configuringChart.selectedDataset.type === 'table'
+                                  ? configuringChart.selectedDataset.data.columns.filter((c: any) => type === 'heatmap' ? (c.type === 'String' || c.type === 'Integer') : ((configuringChart.groupBy && configuringChart.aggregation === 'COUNT') || c.type === 'Integer' || c.type === 'Float'))
+                                  : (configuringChart.selectedDataset.data.columns_mapped || [])
+                                ).map((c: any) => (
+                                  <option key={c.name} value={c.name}>{c.name} {c.type !== 'Any' ? `(${c.type})` : ''}</option>
+                                ))}
+                              </select>
+                              {fieldErrors.yColumn && <p className={`text-xs mb-2 ${fieldErrors.yColumn.includes('Error') ? 'text-red-500' : 'text-yellow-600'}`}>{fieldErrors.yColumn}</p>}
+
+                              {showYProps && (
+                                <div className="bg-gray-50 border border-gray-200 rounded p-2 mt-2 grid grid-cols-2 gap-2 text-xs">
+                                  <div>
+                                    <label className="block text-gray-600 mb-1">Display Label</label>
+                                    <input type="text" value={configuringChart.yAxisProps.label} onChange={e => updateChart(configuringChart.id, { yAxisProps: { ...configuringChart.yAxisProps, label: e.target.value } })} className="w-full border border-gray-300 rounded px-2 py-1" placeholder="e.g. Value" />
+                                  </div>
+                                  <div>
+                                    <label className="block text-gray-600 mb-1">Data Type Cast</label>
+                                    <select value={configuringChart.yAxisProps.type} onChange={e => updateChart(configuringChart.id, { yAxisProps: { ...configuringChart.yAxisProps, type: e.target.value } })} className="w-full border border-gray-300 rounded px-2 py-1 bg-white">
+                                      <option value="">(None)</option>
+                                      <option value="String">String</option>
+                                      <option value="Integer">Integer</option>
+                                      <option value="Float">Float</option>
+                                      <option value="Boolean">Boolean</option>
+                                      <option value="Date">Date</option>
+                                    </select>
+                                  </div>
+                                </div>
+                              )}
+
+                              {showColor && (
+                                <div className="mt-3">
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">{colorLabel}</label>
+                                  <select
+                                    value={configuringChart.colorColumn || ''}
+                                    onChange={(e) => updateChart(configuringChart.id, { colorColumn: e.target.value })}
+                                    className={`w-full border rounded-md p-2 text-sm mb-2 ${fieldErrors.colorColumn ? (fieldErrors.colorColumn.includes('Error') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-yellow-500 focus:ring-yellow-500 focus:border-yellow-500') : 'border-gray-300 focus:ring-green-500 focus:border-green-500'}`}
+                                  >
+                                    <option value="">(None)</option>
+                                    {(configuringChart.selectedDataset.type === 'table' ? configuringChart.selectedDataset.data.columns : (configuringChart.selectedDataset.data.columns_mapped || [])).map((c: any) => (
+                                      <option key={c.name} value={c.name}>{c.name} {c.type !== 'Any' ? `(${c.type})` : ''}</option>
+                                    ))}
+                                  </select>
+                                  {fieldErrors.colorColumn && <p className={`text-xs mb-2 ${fieldErrors.colorColumn.includes('Error') ? 'text-red-500' : 'text-yellow-600'}`}>{fieldErrors.colorColumn}</p>}
+                                </div>
+                              )}
+
+                              {showSize && (
+                                <div className="mt-3">
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">{sizeLabel}</label>
+                                  <select
+                                    value={configuringChart.sizeColumn || ''}
+                                    onChange={(e) => updateChart(configuringChart.id, { sizeColumn: e.target.value })}
+                                    className={`w-full border rounded-md p-2 text-sm mb-2 ${fieldErrors.sizeColumn ? (fieldErrors.sizeColumn.includes('Error') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-yellow-500 focus:ring-yellow-500 focus:border-yellow-500') : 'border-gray-300 focus:ring-green-500 focus:border-green-500'}`}
+                                  >
+                                    <option value="">(None)</option>
+                                    {(configuringChart.selectedDataset.type === 'table' ? configuringChart.selectedDataset.data.columns.filter((c: any) => c.type === 'Integer' || c.type === 'Float') : (configuringChart.selectedDataset.data.columns_mapped || [])).map((c: any) => (
+                                      <option key={c.name} value={c.name}>{c.name} {c.type !== 'Any' ? `(${c.type})` : ''}</option>
+                                    ))}
+                                  </select>
+                                  {fieldErrors.sizeColumn && <p className={`text-xs mb-2 ${fieldErrors.sizeColumn.includes('Error') ? 'text-red-500' : 'text-yellow-600'}`}>{fieldErrors.sizeColumn}</p>}
+                                </div>
+                              )}
+
+                              {showVal && (
+                                <div className="mt-3">
+                                  <label className="block text-sm font-medium text-gray-700 mb-1">{valLabel}</label>
+                                  <select
+                                    value={configuringChart.valColumn || ''}
+                                    onChange={(e) => updateChart(configuringChart.id, { valColumn: e.target.value })}
+                                    className={`w-full border rounded-md p-2 text-sm mb-2 ${fieldErrors.valColumn ? (fieldErrors.valColumn.includes('Error') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-yellow-500 focus:ring-yellow-500 focus:border-yellow-500') : 'border-gray-300 focus:ring-green-500 focus:border-green-500'}`}
+                                  >
+                                    <option value="">(None)</option>
+                                    {(configuringChart.selectedDataset.type === 'table' ? configuringChart.selectedDataset.data.columns.filter((c: any) => c.type === 'Integer' || c.type === 'Float') : (configuringChart.selectedDataset.data.columns_mapped || [])).map((c: any) => (
+                                      <option key={c.name} value={c.name}>{c.name} {c.type !== 'Any' ? `(${c.type})` : ''}</option>
+                                    ))}
+                                  </select>
+                                  {fieldErrors.valColumn && <p className={`text-xs mb-2 ${fieldErrors.valColumn.includes('Error') ? 'text-red-500' : 'text-yellow-600'}`}>{fieldErrors.valColumn}</p>}
+                                </div>
+                              )}
+
+                            </>
+                          );
+                        })()}
+                      </div>
+                    )}
+
+                    {/* Data Operations */}
+                    {configuringChart.chartType !== 'table' && configuringChart.chartType !== 'map' && (
+                      <div className="pt-4 border-t border-gray-200">
+                        <div className="flex items-center justify-between mb-3">
+                          <label className="text-sm font-medium text-gray-700 flex items-center">
+                            <Filter className="h-4 w-4 mr-1" /> Group By
+                          </label>
+                          <input
+                            type="checkbox"
+                            checked={configuringChart.groupBy}
+                            onChange={(e) => updateChart(configuringChart.id, { groupBy: e.target.checked })}
+                            className="h-4 w-4 text-green-600 rounded focus:ring-green-500 cursor-pointer"
+                          />
+                        </div>
+
+                        {configuringChart.groupBy && (
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Aggregation Function</label>
+                            <select
+                              value={configuringChart.aggregation}
+                              onChange={(e) => updateChart(configuringChart.id, { aggregation: e.target.value })}
+                              className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500 mb-3"
+                            >
+                              <option value="SUM">Sum (Total)</option>
+                              <option value="AVG">Average</option>
+                              <option value="COUNT">Count</option>
+                              <option value="MIN">Minimum</option>
+                              <option value="MAX">Maximum</option>
+                            </select>
+
+                            <label className="block text-sm font-medium text-gray-700 mb-1">
+                              {configuringChart.chartType === 'heatmap' ? 'Grouping Field' : 'Grouping Axis'}
+                            </label>
+                            <select
+                              value={configuringChart.groupAxis || 'x'}
+                              onChange={(e) => updateChart(configuringChart.id, { groupAxis: e.target.value as 'x' | 'y' })}
+                              className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500"
+                            >
+                              <option value="x">{configuringChart.chartType === 'heatmap' ? 'Columns' : 'X-Axis'}</option>
+                              <option value="y">{configuringChart.chartType === 'heatmap' ? 'Rows' : 'Y-Axis'}</option>
+                            </select>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {error[configuringChart.id] && (
+                      <div className="text-red-600 text-sm p-2 bg-red-50 rounded-md border border-red-200">
+                        {error[configuringChart.id]}
+                      </div>
+                    )}
+
+                  </>
                 );
               })()}
             </div>
@@ -1116,6 +1111,28 @@ export default function Observations() {
       {/* Global Resize Overlay to prevent iframe event swallowing */}
       {resizingChartId && (
         <div className="fixed inset-0 z-[9999] cursor-se-resize" />
+      )}
+
+      {/* New Dashboard Modal */}
+      {showNewDashboardModal && (
+        <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
+          <div className="bg-white rounded-lg shadow-2xl w-96 p-6 border border-gray-200 pointer-events-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold text-gray-800 flex items-center"><PlusCircle className="h-5 w-5 mr-2 text-indigo-500" /> New Dashboard</h2>
+              <button onClick={() => setShowNewDashboardModal(false)} className="text-gray-400 hover:text-gray-600"><X className="h-5 w-5" /></button>
+            </div>
+            <p className="text-gray-600 text-sm mb-6">Are you sure you want to start a new dashboard? Any unsaved changes will be lost.</p>
+            <div className="flex justify-end space-x-3">
+              <button onClick={() => setShowNewDashboardModal(false)} className="px-4 py-2 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200">Cancel</button>
+              <button onClick={() => {
+                setCharts([]);
+                setActiveDashboard(null);
+                setConfiguringChartId(null);
+                setShowNewDashboardModal(false);
+              }} className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">Confirm</button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
