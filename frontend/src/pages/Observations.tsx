@@ -215,6 +215,24 @@ export default function Observations() {
     const columns = chart.selectedDataset.type === 'table' ? dataset.columns : dataset.columns_mapped;
     const getColMeta = (colName: string) => columns.find((c: any) => c.name === colName);
 
+    // Required Field Checks
+    if (!['map', 'table'].includes(chart.chartType)) {
+      if (!chart.xColumn) errors.xColumn = "Error: This field is required.";
+      if (!chart.yColumn) errors.yColumn = "Error: This field is required.";
+    }
+    if (chart.chartType === 'heatmap' && !chart.valColumn) {
+      errors.valColumn = "Error: Values (Numeric) field is required for Matrix.";
+    }
+    if (chart.chartType === 'table' && (!chart.tableColumns || chart.tableColumns.length === 0)) {
+      errors.tableColumns = "Error: Please select at least one column for the table.";
+    }
+    if (chart.chartType === 'map') {
+      if (!chart.latColumn) errors.latColumn = "Error: Latitude field is required.";
+      if (!chart.lonColumn) errors.lonColumn = "Error: Longitude field is required.";
+      if (chart.mapType === 'heat' && !chart.valColumn) errors.valColumn = "Error: Value field is required for Heat Map.";
+      if (chart.mapType === 'bubble' && !chart.sizeColumn) errors.sizeColumn = "Error: Size field is required for Bubble Map.";
+    }
+
     if (chart.chartType === 'pie') {
       const xMeta = getColMeta(chart.xColumn);
       if (xMeta && xMeta.unique_count && xMeta.unique_count > 12) {
@@ -655,7 +673,9 @@ export default function Observations() {
                 </select>
               </div>
 
-              {configuringChart.selectedDataset && (
+              {configuringChart.selectedDataset && (() => {
+                const fieldErrors = getValidationErrors(configuringChart);
+                return (
                 <>
                   {/* Chart Type */}
                   <div>
@@ -692,7 +712,7 @@ export default function Observations() {
                   {configuringChart.chartType === 'table' ? (
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Select Columns</label>
-                      <div className="bg-white border border-gray-300 rounded-md p-2 max-h-48 overflow-y-auto">
+                      <div className={`bg-white border ${fieldErrors?.tableColumns ? 'border-red-500' : 'border-gray-300'} rounded-md p-2 max-h-48 overflow-y-auto`}>
                         {(configuringChart.selectedDataset.type === 'table' ? configuringChart.selectedDataset.data.columns : configuringChart.selectedDataset.data.columns_mapped).map((c: any) => {
                           const isChecked = (configuringChart.tableColumns || []).includes(c.name);
                           return (
@@ -715,6 +735,7 @@ export default function Observations() {
                           );
                         })}
                       </div>
+                      {fieldErrors?.tableColumns && <p className="text-xs mt-2 text-red-500">{fieldErrors.tableColumns}</p>}
                     </div>
                   ) : configuringChart.chartType === 'map' ? (
                     <div>
@@ -782,8 +803,6 @@ export default function Observations() {
                         const sizeLabel = 'Bubble Size (Numeric)';
                         const showVal = type === 'heatmap';
                         const valLabel = 'Values (Numeric)';
-
-                        const fieldErrors = getValidationErrors(configuringChart);
 
                         return (
                           <>
@@ -896,13 +915,14 @@ export default function Observations() {
                                 <select
                                   value={configuringChart.sizeColumn || ''}
                                   onChange={(e) => updateChart(configuringChart.id, { sizeColumn: e.target.value })}
-                                  className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500 mb-2"
+                                  className={`w-full border rounded-md p-2 text-sm mb-2 ${fieldErrors.sizeColumn ? (fieldErrors.sizeColumn.includes('Error') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-yellow-500 focus:ring-yellow-500 focus:border-yellow-500') : 'border-gray-300 focus:ring-green-500 focus:border-green-500'}`}
                                 >
                                   <option value="">(None)</option>
                                   {(configuringChart.selectedDataset.type === 'table' ? configuringChart.selectedDataset.data.columns.filter((c: any) => c.type === 'Integer' || c.type === 'Float') : (configuringChart.selectedDataset.data.columns_mapped || [])).map((c: any) => (
                                     <option key={c.name} value={c.name}>{c.name} {c.type !== 'Any' ? `(${c.type})` : ''}</option>
                                   ))}
                                 </select>
+                                {fieldErrors.sizeColumn && <p className={`text-xs mb-2 ${fieldErrors.sizeColumn.includes('Error') ? 'text-red-500' : 'text-yellow-600'}`}>{fieldErrors.sizeColumn}</p>}
                               </div>
                             )}
 
@@ -912,13 +932,14 @@ export default function Observations() {
                                 <select
                                   value={configuringChart.valColumn || ''}
                                   onChange={(e) => updateChart(configuringChart.id, { valColumn: e.target.value })}
-                                  className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500 mb-2"
+                                  className={`w-full border rounded-md p-2 text-sm mb-2 ${fieldErrors.valColumn ? (fieldErrors.valColumn.includes('Error') ? 'border-red-500 focus:ring-red-500 focus:border-red-500' : 'border-yellow-500 focus:ring-yellow-500 focus:border-yellow-500') : 'border-gray-300 focus:ring-green-500 focus:border-green-500'}`}
                                 >
                                   <option value="">(None)</option>
                                   {(configuringChart.selectedDataset.type === 'table' ? configuringChart.selectedDataset.data.columns.filter((c: any) => c.type === 'Integer' || c.type === 'Float') : (configuringChart.selectedDataset.data.columns_mapped || [])).map((c: any) => (
                                     <option key={c.name} value={c.name}>{c.name} {c.type !== 'Any' ? `(${c.type})` : ''}</option>
                                   ))}
                                 </select>
+                                {fieldErrors.valColumn && <p className={`text-xs mb-2 ${fieldErrors.valColumn.includes('Error') ? 'text-red-500' : 'text-yellow-600'}`}>{fieldErrors.valColumn}</p>}
                               </div>
                             )}
 
@@ -981,7 +1002,8 @@ export default function Observations() {
                   )}
 
                 </>
-              )}
+                );
+              })()}
             </div>
 
             <div className="p-4 border-t border-gray-200 bg-gray-50">
