@@ -20,6 +20,7 @@ export interface ChartConfig {
   groupBy: boolean;
   groupAxis?: 'x' | 'y';
   aggregation: string;
+  matrixMode?: 'grid' | 'heatmap';
   chartData: any;
   width: number;
   height: number;
@@ -124,8 +125,11 @@ export default function ChartRenderer({ chart, className, overrideWidth, overrid
       pieTrace.marker = { colors: colors };
     }
     data = [pieTrace];
-  } else if (chart.chartType === 'table') {
-    const columns = Object.keys(chart.chartData[0] || {});
+  } else if (chart.chartType === 'table' || (chart.chartType === 'heatmap' && chart.matrixMode !== 'heatmap')) {
+    let columns = Object.keys(chart.chartData[0] || {});
+    if (chart.chartType === 'heatmap' && chart.yColumn && columns.includes(chart.yColumn)) {
+        columns = [chart.yColumn, ...columns.filter(c => c !== chart.yColumn)];
+    }
     data = [{
       type: 'table',
       header: {
@@ -135,21 +139,31 @@ export default function ChartRenderer({ chart, className, overrideWidth, overrid
         font: { family: "Inter, sans-serif", size: 14, color: "#374151" }
       },
       cells: {
-        values: columns.map(c => chart.chartData.map((d: any) => d[c])),
+        values: columns.map(c => chart.chartData.map((d: any) => {
+          let val = d[c];
+          return typeof val === 'number' ? (Number.isInteger(val) ? val : val.toFixed(2)) : val;
+        })),
         align: "center",
         fill: { color: "#ffffff" },
         font: { family: "Inter, sans-serif", size: 12, color: "#4b5563" }
       }
     }];
-  } else if (chart.chartType === 'heatmap') {
-    const zValues = chart.valColumn ? chart.chartData.map((d: any) => Number(d[chart.valColumn])) : undefined;
-    data = [{ 
-      type: 'histogram2d', 
-      x: xValues, 
-      y: yValues,
-      z: zValues,
-      histfunc: chart.valColumn ? "sum" : "count",
-      colorscale: 'Greens' 
+  } else if (chart.chartType === 'heatmap' && chart.matrixMode === 'heatmap') {
+    let columns = Object.keys(chart.chartData[0] || {});
+    if (chart.yColumn && columns.includes(chart.yColumn)) {
+        columns = [chart.yColumn, ...columns.filter(c => c !== chart.yColumn)];
+    }
+    const xLabels = columns.slice(1);
+    const yLabels = chart.chartData.map((row: any) => row[columns[0]]);
+    const zData = chart.chartData.map((row: any) => xLabels.map(col => row[col] === null ? null : Number(row[col])));
+    
+    data = [{
+      type: 'heatmap',
+      x: xLabels,
+      y: yLabels,
+      z: zData,
+      colorscale: 'Greens',
+      texttemplate: "%{z}"
     }];
   } else if (chart.chartType === 'treemap') {
     // If colorColumn (Sub-Category) is provided, build a 2-level hierarchy
@@ -219,8 +233,10 @@ export default function ChartRenderer({ chart, className, overrideWidth, overrid
   const actualYLabel = chart.yAxisProps?.label || chart.yColumn || '';
 
   let chartTitle = `${chart.selectedDataset?.data?.filename || chart.selectedDataset?.data?.name || 'Chart'}`;
-  if (chart.chartType !== 'table') {
+  if (chart.chartType !== 'table' && chart.chartType !== 'heatmap') {
       chartTitle += ` - ${chart.groupBy ? `${chart.aggregation}(${actualYLabel})` : actualYLabel} by ${actualXLabel}`;
+  } else if (chart.chartType === 'heatmap') {
+      chartTitle += ` - Matrix: ${actualYLabel} (Rows) vs ${actualXLabel} (Columns)`;
   }
 
   let chartLayout: any = {
@@ -241,7 +257,7 @@ export default function ChartRenderer({ chart, className, overrideWidth, overrid
     ...layoutAdditions
   };
 
-  if (['bar', 'line', 'scatter', 'heatmap'].includes(chart.chartType)) {
+  if (['bar', 'line', 'scatter'].includes(chart.chartType)) {
     if (chart.groupBy && chart.groupAxis === 'y') {
       chartLayout.yaxis = {
         title: { text: actualYLabel },
@@ -255,7 +271,7 @@ export default function ChartRenderer({ chart, className, overrideWidth, overrid
       };
     } else {
       chartLayout.yaxis = {
-        title: { text: chart.groupBy ? `${chart.aggregation}(${actualYLabel})` : actualYLabel },
+        title: { text: chart.groupBy && chart.chartType !== 'heatmap' ? `${chart.aggregation}(${actualYLabel})` : actualYLabel },
         automargin: true,
         ...(chart.yAxisProps?.type === 'Integer' ? { tickformat: 'd' } : {})
       };

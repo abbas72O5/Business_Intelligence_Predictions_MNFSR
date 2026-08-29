@@ -330,7 +330,14 @@ async def generate_observation(request: ObservationQueryRequest, current_user = 
                 source_sql = f"'{storage_path}'"
 
             # Build query
-            if request.group_by and request.aggregation:
+            if request.chart_type == "heatmap":
+                if not request.val_column:
+                    raise HTTPException(status_code=400, detail="Matrix requires a value column.")
+                agg_func = request.aggregation.upper() if (request.group_by and request.aggregation) else "SUM"
+                if agg_func not in ["SUM", "AVG", "COUNT", "MIN", "MAX"]:
+                    raise HTTPException(status_code=400, detail="Invalid aggregation function.")
+                sql = f"PIVOT (SELECT {x_cast} as x, {y_cast} as \"{request.y_column}\", TRY_CAST(\"{request.val_column}\" AS DOUBLE) as val FROM {source_sql} {where_sql}) ON x USING COALESCE({agg_func}(val), 0) GROUP BY \"{request.y_column}\" LIMIT 2000"
+            elif request.group_by and request.aggregation:
                 agg_func = request.aggregation.upper()
                 if agg_func not in ["SUM", "AVG", "COUNT", "MIN", "MAX"]:
                     raise HTTPException(status_code=400, detail="Invalid aggregation function.")
@@ -339,7 +346,7 @@ async def generate_observation(request: ObservationQueryRequest, current_user = 
                 group_bys = []
                 
                 # Handle X
-                if request.group_axis == 'y':
+                if request.group_axis == 'y' and request.chart_type != "heatmap":
                     safe_x = f"TRY_CAST({x_cast} AS DOUBLE)" if agg_func in ["SUM", "AVG"] and not request.x_cast_type else x_cast
                     selects.append(f"{agg_func}({safe_x}) as \"{request.x_column}\"")
                 else:
@@ -347,7 +354,7 @@ async def generate_observation(request: ObservationQueryRequest, current_user = 
                     group_bys.append(x_cast)
                     
                 # Handle Y
-                if request.group_axis == 'y':
+                if request.group_axis == 'y' or request.chart_type == "heatmap":
                     selects.append(f"{y_cast} as \"{request.y_column}\"")
                     group_bys.append(y_cast)
                 else:
@@ -362,8 +369,6 @@ async def generate_observation(request: ObservationQueryRequest, current_user = 
                     selects.append(f"{agg_func}(TRY_CAST(\"{request.size_column}\" AS DOUBLE)) as \"{request.size_column}\"")
                 if request.val_column:
                     val_agg = f"{agg_func}(TRY_CAST(\"{request.val_column}\" AS DOUBLE))"
-                    if request.chart_type == "heatmap":
-                        val_agg = f"COALESCE({val_agg}, 0)"
                     selects.append(f"{val_agg} as \"{request.val_column}\"")
                     
                 group_clause = f" GROUP BY {', '.join(group_bys)}" if group_bys else ""
@@ -386,7 +391,7 @@ async def generate_observation(request: ObservationQueryRequest, current_user = 
             map_html = generate_folium_map(df, request.lat_column, request.lon_column, request.val_column, request.map_type)
             return [{"map_html": map_html}]
             
-        elif request.chart_type == "table":
+        elif request.chart_type in ["table", "heatmap"]:
             if df.empty:
                 return []
             return df.replace({np.nan: None}).to_dict(orient="records")
