@@ -719,6 +719,11 @@ async def generate_prediction(request: PredictionQueryRequest, current_user = De
             future = m.make_future_dataframe(periods=request.periods, freq=safe_freq)
             forecast = m.predict(future)
             
+            if not request.allow_negatives:
+                forecast['yhat'] = np.maximum(0, forecast['yhat'])
+                forecast['yhat_lower'] = np.maximum(0, forecast['yhat_lower'])
+                forecast['yhat_upper'] = np.maximum(0, forecast['yhat_upper'])
+            
             combined = forecast[['ds', 'yhat', 'yhat_lower', 'yhat_upper']].copy()
             combined['ds'] = combined['ds'].astype(str)
             df['ds'] = df['ds'].astype(str)
@@ -774,20 +779,36 @@ async def generate_prediction(request: PredictionQueryRequest, current_user = De
             # Combine
             records = []
             for i in range(len(df)):
+                yh = float(yhat_historical[i])
+                yh_l = float(yhat_historical[i] - 1.96 * se)
+                yh_u = float(yhat_historical[i] + 1.96 * se)
+                if not request.allow_negatives:
+                    yh = max(0.0, yh)
+                    yh_l = max(0.0, yh_l)
+                    yh_u = max(0.0, yh_u)
+                
                 records.append({
                     "ds": float(df['ds'].iloc[i]),
                     "y": float(df['y'].iloc[i]),
-                    "yhat": float(yhat_historical[i]),
-                    "yhat_lower": float(yhat_historical[i] - 1.96 * se),
-                    "yhat_upper": float(yhat_historical[i] + 1.96 * se)
+                    "yhat": yh,
+                    "yhat_lower": yh_l,
+                    "yhat_upper": yh_u
                 })
             for i in range(len(future_x)):
+                yh = float(yhat_future[i])
+                yh_l = float(yhat_future[i] - 1.96 * se)
+                yh_u = float(yhat_future[i] + 1.96 * se)
+                if not request.allow_negatives:
+                    yh = max(0.0, yh)
+                    yh_l = max(0.0, yh_l)
+                    yh_u = max(0.0, yh_u)
+                    
                 records.append({
                     "ds": float(future_x[i]),
                     "y": None,
-                    "yhat": float(yhat_future[i]),
-                    "yhat_lower": float(yhat_future[i] - 1.96 * se),
-                    "yhat_upper": float(yhat_future[i] + 1.96 * se)
+                    "yhat": yh,
+                    "yhat_lower": yh_l,
+                    "yhat_upper": yh_u
                 })
                 
             from sklearn.metrics import r2_score

@@ -57,3 +57,4 @@ class PredictionQueryRequest(BaseModel):
     grouping_columns: Optional[List[str]] = None
     prediction_mode: str = "trajectory" # 'trajectory' or 'snapshot'
     map_type: str = "bubble"
+    allow_negatives: bool = False

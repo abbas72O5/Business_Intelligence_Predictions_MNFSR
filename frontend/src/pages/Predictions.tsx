@@ -26,6 +26,7 @@ interface CanvasItem {
     freq: string;
     dateCol: string;
     valCol: string;
+    allowNegatives: boolean;
   };
   predictionData: PredictionData[] | null;
   predictionMetrics?: {
@@ -281,7 +282,8 @@ export default function Predictions() {
             periods: 12,
             freq: 'ME',
             dateCol: chart.xColumn || '',
-            valCol: chart.yColumn || chart.valColumn || ''
+            valCol: chart.yColumn || chart.valColumn || '',
+            allowNegatives: false
           },
           predictionData: null,
           loading: false,
@@ -361,7 +363,8 @@ export default function Predictions() {
         chart_type: item.chart.chartType,
         grouping_columns: groupingColumns,
         prediction_mode: predictionMode,
-        map_type: item.chart.mapType || 'bubble'
+        map_type: item.chart.mapType || 'bubble',
+        allow_negatives: item.predictionConfig.allowNegatives
       }, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -462,13 +465,27 @@ export default function Predictions() {
     }
 
     // If it was originally a line chart, render the advanced Plot
-    const ds = predictionData.map(d => d.ds);
-    const y_actual = predictionData.map(d => d.y);
-    const yhat = predictionData.map(d => d.yhat);
+    const histData = predictionData.filter(d => d.y !== null);
+    const futData = predictionData.filter(d => d.y === null);
+    
+    const histX = histData.map(d => d.ds);
+    const histY = histData.map(d => d.y);
+    
+    let futX: string[] = [];
+    let futY: number[] = [];
+    
+    if (histData.length > 0) {
+      const lastHist = histData[histData.length - 1];
+      futX = [lastHist.ds, ...futData.map(d => d.ds)];
+      futY = [lastHist.y as number, ...futData.map(d => d.yhat)];
+    } else {
+      futX = futData.map(d => d.ds);
+      futY = futData.map(d => d.yhat);
+    }
 
     const actualTrace = {
-      x: ds,
-      y: y_actual,
+      x: histX,
+      y: histY,
       type: 'scatter',
       mode: 'lines+markers',
       name: 'Historical',
@@ -476,8 +493,8 @@ export default function Predictions() {
       marker: { size: 4 }
     };
     const forecastTrace = {
-      x: ds,
-      y: yhat,
+      x: futX,
+      y: futY,
       type: 'scatter',
       mode: 'lines',
       name: 'Forecast',
@@ -497,7 +514,7 @@ export default function Predictions() {
               plot_bgcolor: 'transparent',
               hovermode: 'x unified',
               xaxis: { title: predictionConfig.dateCol },
-              yaxis: { title: predictionConfig.valCol },
+              yaxis: { title: predictionConfig.valCol, autorange: true },
               legend: { orientation: 'h', y: -0.2 }
             }}
             config={{ displaylogo: false, responsive: true }}
@@ -644,9 +661,9 @@ export default function Predictions() {
                       </div>
                     </div>
 
-                    <div className="p-4 w-full flex-1 h-full relative">
+                    <div className="p-4 w-full flex-1 min-h-0 relative flex flex-col">
                       {item.isConfiguring ? (
-                        <div className="h-full flex flex-col max-w-md mx-auto space-y-4 animate-in fade-in pt-2">
+                        <div className="w-full flex-1 flex flex-col min-h-0 max-w-md mx-auto space-y-4 animate-in fade-in pt-2">
                           {/* Tabs */}
                           <div className="flex border-b border-gray-200 mb-2">
                             <button
@@ -663,7 +680,7 @@ export default function Predictions() {
                             </button>
                           </div>
 
-                          <div className="overflow-y-auto flex-1 space-y-4 pr-2">
+                          <div className="overflow-y-auto flex-1 min-h-0 space-y-4 pr-2 pb-2">
                             <div>
                               <label className="block text-sm font-medium text-gray-700 mb-1">
                                 {item.configTab === 'time_series' ? 'Time (Date) Column' : 'Numeric X-Axis Column'}
@@ -718,6 +735,19 @@ export default function Predictions() {
                                   </select>
                                 </div>
                               )}
+                            </div>
+
+                            <div className="flex items-center pt-2">
+                              <input
+                                type="checkbox"
+                                id={`allow-negatives-${item.id}`}
+                                checked={item.predictionConfig.allowNegatives}
+                                onChange={(e) => updatePredictionConfig(item.id, { allowNegatives: e.target.checked })}
+                                className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded"
+                              />
+                              <label htmlFor={`allow-negatives-${item.id}`} className="ml-2 block text-sm text-gray-900">
+                                Allow Negative Values
+                              </label>
                             </div>
 
                             {item.error && (
