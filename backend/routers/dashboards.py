@@ -33,6 +33,34 @@ async def save_dashboard(payload: Dict[str, Any], current_user = Depends(get_cur
     await db.dashboards.insert_one(doc)
     return DashboardMetadata(**doc)
 
+@router.put("/{dashboard_id}", response_model=DashboardMetadata)
+async def update_dashboard(dashboard_id: str, payload: Dict[str, Any], current_user = Depends(get_current_user)):
+    charts = payload.get("charts", [])
+    
+    # Check if dashboard exists and belongs to user
+    dashboard = await db.dashboards.find_one({"dashboard_id": dashboard_id, "created_by": str(current_user["_id"])})
+    if not dashboard:
+        raise HTTPException(status_code=404, detail="Dashboard not found")
+        
+    # Update charts and updated_at
+    update_data = {
+        "charts": charts,
+        "updated_at": datetime.utcnow()
+    }
+    
+    # Optionally update name if provided
+    if "name" in payload:
+        update_data["name"] = payload["name"]
+        
+    await db.dashboards.update_one(
+        {"dashboard_id": dashboard_id},
+        {"$set": update_data}
+    )
+    
+    # Fetch and return updated dashboard
+    updated_dashboard = await db.dashboards.find_one({"dashboard_id": dashboard_id})
+    return DashboardMetadata(**updated_dashboard)
+
 @router.get("/", response_model=List[DashboardMetadata])
 async def get_dashboards(type: str = None, current_user = Depends(get_current_user)):
     query = {"created_by": str(current_user["_id"])}

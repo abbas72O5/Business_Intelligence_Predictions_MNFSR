@@ -59,6 +59,15 @@ export default function Observations() {
     return [];
   });
 
+  const [activeDashboard, setActiveDashboard] = useState<{id: string, name: string} | null>(() => {
+    const saved = localStorage.getItem('obs_activeDashboard');
+    return saved ? JSON.parse(saved) : null;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('obs_activeDashboard', JSON.stringify(activeDashboard));
+  }, [activeDashboard]);
+
   const [configuringChartId, setConfiguringChartId] = useState<string | null>(null);
   const [panelWidth, setPanelWidth] = useState(350);
   const [isResizing, setIsResizing] = useState(false);
