@@ -61,3 +61,16 @@ A comprehensive Business Intelligence and Analytics platform designed for minist
 - **Polished UX & Visualization Improvements:**
   - **Axis Grouping Flexibility:** Support for grouping data aggressively by either X or Y axis depending on chart type, applying user-selected SQL aggregation functions (`SUM`, `AVG`, `COUNT`), and dynamically generating appropriate axis titles like `SUM(Students)`.
   - **Responsive Plotly Overhauls:** Engineered Plotly to utilize reactive `automargin` mechanics, completely resolving layout overlapping issues by dynamically adjusting chart bounding boxes based on the length and rotation of data labels.
+  - **Fluid Widget Refinements:** Streamlined UI elements such as decreasing oversized button fonts to maintain single-line horizontal layouts, and converting native browser alerts to custom UI-matching modal dialogs for a cohesive aesthetic.
+
+- **Persistent Workspaces & Dashboard Management:**
+  - **Save/Load Capabilities:** Enabled robust state preservation across the platform. Users can now save, update, and load entire Data Selection logical models, Observation Dashboards, and Prediction Layouts via dedicated backend endpoints (`PUT`/`POST`). 
+  - **Live Canvas Reconstruction:** Loading a saved artifact seamlessly reconstructs the visual react-flow nodes, relationship edges, and chart configurations exactly as they were left.
+
+- **Enhanced Forecasting Boundaries & Rendering:**
+  - **Negative Bounds Clamping:** Upgraded the prediction engine with an "Allow Negative Values" configuration toggle. By default, linear regression and Prophet algorithms forcefully clamp forecast values (and confidence intervals) at zero to prevent mathematically accurate but logically impossible projections (like negative revenue).
+  - **Seamless Forecasting Traces:** Refined the Plotly data mapping to perfectly stitch the forecasted trace precisely where the historical trace ends, removing any ugly data overlaps while maintaining Plotly's auto-scaling Y-axis behaviors.
+
+- **Frontend Cache Isolation (Workspace Security):**
+  - **Strict Per-User Browser State:** Identified and resolved a severe data leakage vulnerability where live, unsaved canvas configurations were cached globally in the browser's `localStorage`.
+  - **Session Sandboxing:** Dynamically prefixed all `localStorage` state keys (e.g. `obs_charts`, `pred_canvas`) with the actively authenticated User's UUID. This completely isolates workspaces, ensuring that multiple users sharing the same computer/browser cannot view or overwrite each other's live, unsaved BI canvases.
