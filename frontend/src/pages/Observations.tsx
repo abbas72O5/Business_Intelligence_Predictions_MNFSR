@@ -21,13 +21,14 @@ interface TableMetadata {
 }
 
 export default function Observations() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [tables, setTables] = useState<TableMetadata[]>([]);
   const [models, setModels] = useState<any[]>([]);
 
   const loadState = (key: string, defaultVal: any) => {
+    const userId = user?.id || 'guest';
     try {
-      const v = localStorage.getItem(key);
+      const v = localStorage.getItem(`${userId}_${key}`);
       return v ? JSON.parse(v) : defaultVal;
     } catch {
       return defaultVal;
@@ -60,13 +61,15 @@ export default function Observations() {
   });
 
   const [activeDashboard, setActiveDashboard] = useState<{ id: string, name: string } | null>(() => {
-    const saved = localStorage.getItem('obs_activeDashboard');
+    const userId = user?.id || 'guest';
+    const saved = localStorage.getItem(`${userId}_obs_activeDashboard`);
     return saved ? JSON.parse(saved) : null;
   });
 
   useEffect(() => {
-    localStorage.setItem('obs_activeDashboard', JSON.stringify(activeDashboard));
-  }, [activeDashboard]);
+    const userId = user?.id || 'guest';
+    localStorage.setItem(`${userId}_obs_activeDashboard`, JSON.stringify(activeDashboard));
+  }, [activeDashboard, user?.id]);
 
   const [configuringChartId, setConfiguringChartId] = useState<string | null>(null);
   const [panelWidth, setPanelWidth] = useState(350);
@@ -98,8 +101,9 @@ export default function Observations() {
   const [error, setError] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    localStorage.setItem('obs_charts', JSON.stringify(charts));
-  }, [charts]);
+    const userId = user?.id || 'guest';
+    localStorage.setItem(`${userId}_obs_charts`, JSON.stringify(charts));
+  }, [charts, user?.id]);
 
   useEffect(() => {
     if (!isResizing) return;
@@ -239,8 +243,7 @@ export default function Observations() {
     if (chart.chartType === 'map') {
       if (!chart.latColumn) errors.latColumn = "Error: Latitude field is required.";
       if (!chart.lonColumn) errors.lonColumn = "Error: Longitude field is required.";
-      if (chart.mapType === 'heat' && !chart.valColumn) errors.valColumn = "Error: Value field is required for Heat Map.";
-      if (chart.mapType === 'bubble' && !chart.sizeColumn) errors.sizeColumn = "Error: Size field is required for Bubble Map.";
+      if (!chart.valColumn) errors.valColumn = "Error: Value/Size field is required for Map.";
     }
 
     if (chart.chartType === 'pie') {
@@ -445,12 +448,13 @@ export default function Observations() {
   };
 
   useEffect(() => {
-    const autoLoadId = localStorage.getItem('obs_auto_load_id');
+    const userId = user?.id || 'guest';
+    const autoLoadId = localStorage.getItem(`${userId}_obs_auto_load_id`);
     if (autoLoadId) {
       loadDashboard(autoLoadId);
-      localStorage.removeItem('obs_auto_load_id');
+      localStorage.removeItem(`${userId}_obs_auto_load_id`);
     }
-  }, []);
+  }, [user?.id]);
 
   // renderPlot has been moved to ChartRenderer
 
@@ -777,28 +781,31 @@ export default function Observations() {
                         </div>
 
                         <label className="block text-sm font-medium text-gray-700 mb-1">Latitude Field (Numeric)</label>
-                        <select value={configuringChart.latColumn || ''} onChange={(e) => updateChart(configuringChart.id, { latColumn: e.target.value })} className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500 mb-3">
+                        <select value={configuringChart.latColumn || ''} onChange={(e) => updateChart(configuringChart.id, { latColumn: e.target.value })} className={`w-full border rounded-md p-2 text-sm mb-1 ${fieldErrors.latColumn ? 'border-red-500' : 'border-gray-300 focus:ring-green-500 focus:border-green-500'}`}>
                           <option value="" disabled>Select column...</option>
                           {(configuringChart.selectedDataset.type === 'table' ? configuringChart.selectedDataset.data.columns : configuringChart.selectedDataset.data.columns_mapped).map((c: any) => (
                             <option key={c.name} value={c.name}>{c.name}</option>
                           ))}
                         </select>
+                        {fieldErrors.latColumn && <p className="text-xs mb-3 text-red-500">{fieldErrors.latColumn}</p>}
 
                         <label className="block text-sm font-medium text-gray-700 mb-1">Longitude Field (Numeric)</label>
-                        <select value={configuringChart.lonColumn || ''} onChange={(e) => updateChart(configuringChart.id, { lonColumn: e.target.value })} className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500 mb-3">
+                        <select value={configuringChart.lonColumn || ''} onChange={(e) => updateChart(configuringChart.id, { lonColumn: e.target.value })} className={`w-full border rounded-md p-2 text-sm mb-1 ${fieldErrors.lonColumn ? 'border-red-500' : 'border-gray-300 focus:ring-green-500 focus:border-green-500'}`}>
                           <option value="" disabled>Select column...</option>
                           {(configuringChart.selectedDataset.type === 'table' ? configuringChart.selectedDataset.data.columns : configuringChart.selectedDataset.data.columns_mapped).map((c: any) => (
                             <option key={c.name} value={c.name}>{c.name}</option>
                           ))}
                         </select>
+                        {fieldErrors.lonColumn && <p className="text-xs mb-3 text-red-500">{fieldErrors.lonColumn}</p>}
 
                         <label className="block text-sm font-medium text-gray-700 mb-1">Value/Size Field (Numeric)</label>
-                        <select value={configuringChart.valColumn || ''} onChange={(e) => updateChart(configuringChart.id, { valColumn: e.target.value })} className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500 mb-3">
+                        <select value={configuringChart.valColumn || ''} onChange={(e) => updateChart(configuringChart.id, { valColumn: e.target.value })} className={`w-full border rounded-md p-2 text-sm mb-1 ${fieldErrors.valColumn ? 'border-red-500' : 'border-gray-300 focus:ring-green-500 focus:border-green-500'}`}>
                           <option value="" disabled>Select column...</option>
                           {(configuringChart.selectedDataset.type === 'table' ? configuringChart.selectedDataset.data.columns : configuringChart.selectedDataset.data.columns_mapped).map((c: any) => (
                             <option key={c.name} value={c.name}>{c.name}</option>
                           ))}
                         </select>
+                        {fieldErrors.valColumn && <p className="text-xs mb-3 text-red-500">{fieldErrors.valColumn}</p>}
 
                         <label className="block text-sm font-medium text-gray-700 mb-1">Label Field (String)</label>
                         <select value={configuringChart.labelColumn || ''} onChange={(e) => updateChart(configuringChart.id, { labelColumn: e.target.value })} className="w-full border border-gray-300 rounded-md p-2 text-sm focus:ring-green-500 focus:border-green-500 mb-3">

@@ -21,7 +21,7 @@ const nodeTypes = {
 
 // We wrap the actual component in ReactFlowProvider so we can use useReactFlow hooks if needed later
 function DataSelectionCanvas() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [files, setFiles] = useState<TableMetadata[]>([]);
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
 
@@ -98,7 +98,7 @@ function DataSelectionCanvas() {
   const onChangeColumnType = useCallback(async (nodeId: string, tableId: string, colName: string, oldType: string, newType: string) => {
     const o = oldType.toLowerCase();
     const n = newType.toLowerCase();
-    
+
     if (o === n) return;
 
     // Define permissible casts according to business rules:
@@ -139,7 +139,7 @@ function DataSelectionCanvas() {
               validDates++;
             }
           }
-          
+
           if (totalChecked > 0 && validDates / totalChecked < 0.5) {
             setErrorPopup({
               title: "Invalid Data Type Cast",
@@ -164,7 +164,7 @@ function DataSelectionCanvas() {
       });
       setNodes(nds => nds.map(n => {
         if (n.id === nodeId) {
-          const updatedColumns = n.data.columns.map((c: any) => 
+          const updatedColumns = n.data.columns.map((c: any) =>
             c.name === colName ? { ...c, type: newType } : c
           );
           return { ...n, data: { ...n.data, columns: updatedColumns } };
@@ -179,7 +179,8 @@ function DataSelectionCanvas() {
   // Restore and Persist State
   useEffect(() => {
     try {
-      const savedNodes = localStorage.getItem('dataSelectionNodes');
+      const userId = user?.id || 'guest';
+      const savedNodes = localStorage.getItem(`${userId}_dataSelectionNodes`);
       if (savedNodes) {
         const parsedNodes = JSON.parse(savedNodes).map((n: any) => ({
           ...n,
@@ -196,12 +197,12 @@ function DataSelectionCanvas() {
         setNodes(parsedNodes);
       }
 
-      const savedEdges = localStorage.getItem('dataSelectionEdges');
+      const savedEdges = localStorage.getItem(`${userId}_dataSelectionEdges`);
       if (savedEdges) {
         setEdges(JSON.parse(savedEdges));
       }
 
-      const savedCols = localStorage.getItem('dataSelectionColumns');
+      const savedCols = localStorage.getItem(`${userId}_dataSelectionColumns`);
       if (savedCols) {
         setSelectedColumns(new Map(JSON.parse(savedCols)));
       }
@@ -221,27 +222,31 @@ function DataSelectionCanvas() {
           selectedColumnsArray: Array.from(n.data.selectedColumns || [])
         }
       }));
-      localStorage.setItem('dataSelectionNodes', JSON.stringify(serializableNodes));
+      const userId = user?.id || 'guest';
+      localStorage.setItem(`${userId}_dataSelectionNodes`, JSON.stringify(serializableNodes));
     } else {
-      localStorage.removeItem('dataSelectionNodes');
+      const userId = user?.id || 'guest';
+      localStorage.removeItem(`${userId}_dataSelectionNodes`);
     }
-  }, [nodes]);
+  }, [nodes, user?.id]);
 
   useEffect(() => {
+    const userId = user?.id || 'guest';
     if (edges.length > 0) {
-      localStorage.setItem('dataSelectionEdges', JSON.stringify(edges));
+      localStorage.setItem(`${userId}_dataSelectionEdges`, JSON.stringify(edges));
     } else {
-      localStorage.removeItem('dataSelectionEdges');
+      localStorage.removeItem(`${userId}_dataSelectionEdges`);
     }
-  }, [edges]);
+  }, [edges, user?.id]);
 
   useEffect(() => {
+    const userId = user?.id || 'guest';
     if (selectedColumns.size > 0) {
-      localStorage.setItem('dataSelectionColumns', JSON.stringify(Array.from(selectedColumns.entries())));
+      localStorage.setItem(`${userId}_dataSelectionColumns`, JSON.stringify(Array.from(selectedColumns.entries())));
     } else {
-      localStorage.removeItem('dataSelectionColumns');
+      localStorage.removeItem(`${userId}_dataSelectionColumns`);
     }
-  }, [selectedColumns]);
+  }, [selectedColumns, user?.id]);
 
   const handleAliasChange = (key: string, newAlias: string) => {
     setSelectedColumns((prev) => {
@@ -257,16 +262,16 @@ function DataSelectionCanvas() {
   const onConnect = useCallback(async (params: Connection | Edge) => {
     const sourceNode = nodes.find(n => n.id === params.source);
     const targetNode = nodes.find(n => n.id === params.target);
-    
+
     // Extract column names
     const sourceColName = params.sourceHandle?.replace('-source', '');
     const targetColName = params.targetHandle?.replace('-target', '');
-    
+
     if (sourceNode && targetNode && sourceColName && targetColName) {
       // Find columns to check types
       const sourceColData = sourceNode.data.columns?.find((c: any) => (c.alias || c.name || c.column) === sourceColName || c.name === sourceColName);
       const targetColData = targetNode.data.columns?.find((c: any) => (c.alias || c.name || c.column) === targetColName || c.name === targetColName);
-      
+
       if (sourceColData && targetColData) {
         // Sanitize: Check for data type mismatch
         if (sourceColData.type !== targetColData.type) {
@@ -287,7 +292,7 @@ function DataSelectionCanvas() {
       style: { stroke: '#16a34a', strokeWidth: 2, strokeDasharray: 'none' }
     };
     setEdges((eds) => addEdge(newEdge, eds));
-    
+
     // Save to backend
 
     if (sourceNode && targetNode) {
@@ -363,7 +368,7 @@ function DataSelectionCanvas() {
     if (!selectedEdge) return;
     const edgeId = selectedEdge.id;
     const currentEdge = selectedEdge;
-    
+
     setEdges((eds) => eds.map(e => {
       if (e.id === edgeId) {
         return {
@@ -379,7 +384,7 @@ function DataSelectionCanvas() {
       return e;
     }));
     setSelectedEdge(null);
-    
+
     const sourceNode = nodes.find(n => n.id === currentEdge.source);
     const targetNode = nodes.find(n => n.id === currentEdge.target);
     if (sourceNode && targetNode) {
@@ -474,7 +479,7 @@ function DataSelectionCanvas() {
       const sourceNode = nodes.find(n => n.id === edge.source);
       const targetNode = nodes.find(n => n.id === edge.target);
       if (!sourceNode || !targetNode) return null;
-      
+
       return {
         source_table_id: sourceNode.data.table_id,
         target_table_id: targetNode.data.table_id,
@@ -596,15 +601,15 @@ function DataSelectionCanvas() {
     // 2. Generate nodes for these tables, spaced out horizontally
     const newNodes: any[] = [];
     const nodeIdMap = new Map<string, string>(); // map table_id to node_id
-    
+
     let xOffset = 100;
     Array.from(tableIds).forEach((tableId, index) => {
       const fileMeta = files.find(f => f.table_id === tableId);
       if (!fileMeta) return; // If file was deleted but model still exists
-      
+
       const newNodeId = `node_${Date.now()}_${index}`;
       nodeIdMap.set(tableId, newNodeId);
-      
+
       newNodes.push({
         id: newNodeId,
         type: 'tableNode',
@@ -633,13 +638,13 @@ function DataSelectionCanvas() {
         const fileMeta = files.find(f => f.table_id === col.table_id);
         const fileType = fileMeta?.columns.find(c => c.name === col.column)?.type || 'String';
         const key = `${nodeId}-${col.table_id}-${col.column}`;
-        newSelectedColumns.set(key, { 
-          nodeId, 
-          tableId: col.table_id, 
-          filename: fileMeta?.filename || '', 
-          colName: col.column, 
-          type: fileType, 
-          alias: col.alias || col.column 
+        newSelectedColumns.set(key, {
+          nodeId,
+          tableId: col.table_id,
+          filename: fileMeta?.filename || '',
+          colName: col.column,
+          type: fileType,
+          alias: col.alias || col.column
         });
       }
     });
@@ -669,7 +674,7 @@ function DataSelectionCanvas() {
         });
       }
     });
-    
+
     // Slight timeout to let nodes render before applying edges
     setTimeout(() => {
       setEdges(newEdges);
@@ -727,9 +732,10 @@ function DataSelectionCanvas() {
         setNodes([]);
         setEdges([]);
         setSelectedColumns(new Map());
-        localStorage.removeItem('dataSelectionNodes');
-        localStorage.removeItem('dataSelectionEdges');
-        localStorage.removeItem('dataSelectionColumns');
+        const userId = user?.id || 'guest';
+        localStorage.removeItem(`${userId}_dataSelectionNodes`);
+        localStorage.removeItem(`${userId}_dataSelectionEdges`);
+        localStorage.removeItem(`${userId}_dataSelectionColumns`);
         setActiveModel(null);
         setConfirmAction(null);
       }
@@ -1087,13 +1093,13 @@ function DataSelectionCanvas() {
                 <div className="space-x-3">
                   <button onClick={() => setSelectedEdge(null)} className="px-4 py-2 text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md text-sm font-bold">Cancel</button>
                   <button onClick={() => {
-                  const jt = (document.getElementById('joinTypeSelect') as HTMLSelectElement).value;
-                  const cd = (document.getElementById('cardinalitySelect') as HTMLSelectElement).value;
-                  const act = (document.getElementById('activeToggle') as HTMLInputElement).checked;
-                  updateEdgeSettings(jt, cd, act);
-                }} className="px-4 py-2 text-white bg-green-600 hover:bg-green-700 rounded-md text-sm font-bold">
-                  Save Settings
-                </button>
+                    const jt = (document.getElementById('joinTypeSelect') as HTMLSelectElement).value;
+                    const cd = (document.getElementById('cardinalitySelect') as HTMLSelectElement).value;
+                    const act = (document.getElementById('activeToggle') as HTMLInputElement).checked;
+                    updateEdgeSettings(jt, cd, act);
+                  }} className="px-4 py-2 text-white bg-green-600 hover:bg-green-700 rounded-md text-sm font-bold">
+                    Save Settings
+                  </button>
                 </div>
               </div>
             </div>
@@ -1155,14 +1161,14 @@ function DataSelectionCanvas() {
                 <X className="h-5 w-5" />
               </button>
             </div>
-            
+
             <div className="p-6 overflow-y-auto flex-1">
               {savedModels.length === 0 ? (
                 <div className="text-center text-gray-500 py-8">No saved models found.</div>
               ) : (
                 <ul className="space-y-3">
                   {savedModels.map((model) => (
-                    <li 
+                    <li
                       key={model.id}
                       onClick={() => loadModel(model)}
                       className="border border-gray-200 rounded-md p-4 hover:border-indigo-500 hover:bg-indigo-50 cursor-pointer transition-colors group"
@@ -1181,7 +1187,7 @@ function DataSelectionCanvas() {
                 </ul>
               )}
             </div>
-            
+
             <div className="p-6 border-t border-gray-200 bg-gray-50 flex justify-end">
               <button
                 onClick={() => setIsLoadModelModalOpen(false)}
@@ -1209,9 +1215,10 @@ function DataSelectionCanvas() {
                 setNodes([]);
                 setEdges([]);
                 setSelectedColumns(new Map());
-                localStorage.removeItem('dataSelectionNodes');
-                localStorage.removeItem('dataSelectionEdges');
-                localStorage.removeItem('dataSelectionColumns');
+                const userId = user?.id || 'guest';
+                localStorage.removeItem(`${userId}_dataSelectionNodes`);
+                localStorage.removeItem(`${userId}_dataSelectionEdges`);
+                localStorage.removeItem(`${userId}_dataSelectionColumns`);
                 setActiveModel(null);
                 setShowNewModelModal(false);
               }} className="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700">Confirm</button>

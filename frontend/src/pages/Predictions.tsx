@@ -38,10 +38,11 @@ interface CanvasItem {
 }
 
 export default function Predictions() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const loadState = (key: string, defaultVal: any) => {
+    const userId = user?.id || 'guest';
     try {
-      const v = localStorage.getItem(key);
+      const v = localStorage.getItem(`${userId}_${key}`);
       return v ? JSON.parse(v) : defaultVal;
     } catch {
       return defaultVal;
@@ -50,28 +51,33 @@ export default function Predictions() {
 
   const [dashboards, setDashboards] = useState<any[]>([]);
   const [selectedDashboardId, setSelectedDashboardId] = useState<string>(() => {
-    const saved = localStorage.getItem('pred_selected_dashboard');
+    const userId = user?.id || 'guest';
+    const saved = localStorage.getItem(`${userId}_pred_selected_dashboard`);
     return saved || '';
   });
 
   const [canvasVisuals, setCanvasVisuals] = useState<CanvasItem[]>(() => loadState('pred_canvas', []));
 
   useEffect(() => {
-    localStorage.setItem('pred_canvas', JSON.stringify(canvasVisuals));
-  }, [canvasVisuals]);
+    const userId = user?.id || 'guest';
+    localStorage.setItem(`${userId}_pred_canvas`, JSON.stringify(canvasVisuals));
+  }, [canvasVisuals, user?.id]);
 
   const [activeDashboard, setActiveDashboard] = useState<{id: string, name: string} | null>(() => {
-    const saved = localStorage.getItem('pred_activeDashboard');
+    const userId = user?.id || 'guest';
+    const saved = localStorage.getItem(`${userId}_pred_activeDashboard`);
     return saved ? JSON.parse(saved) : null;
   });
 
   useEffect(() => {
-    localStorage.setItem('pred_activeDashboard', JSON.stringify(activeDashboard));
-  }, [activeDashboard]);
+    const userId = user?.id || 'guest';
+    localStorage.setItem(`${userId}_pred_activeDashboard`, JSON.stringify(activeDashboard));
+  }, [activeDashboard, user?.id]);
 
   useEffect(() => {
-    localStorage.setItem('pred_selected_dashboard', selectedDashboardId);
-  }, [selectedDashboardId]);
+    const userId = user?.id || 'guest';
+    localStorage.setItem(`${userId}_pred_selected_dashboard`, selectedDashboardId);
+  }, [selectedDashboardId, user?.id]);
 
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [sidebarWidth, setSidebarWidth] = useState(384);
