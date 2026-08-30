@@ -17,10 +17,22 @@ class UserLogin(BaseModel):
     email: EmailStr
     password: str
 
+class Privileges(BaseModel):
+    can_manage_users: bool = True
+    can_view_activities: bool = True
+
+class AdminCreate(BaseModel):
+    email: EmailStr
+    password: str
+    department: str
+    privileges: Privileges
+
 class UserResponse(BaseModel):
     id: str
     email: EmailStr
     role: RoleEnum
     department: Optional[str] = None
     is_verified: bool
+    is_active: bool = True
+    privileges: Optional[Privileges] = None
     created_at: datetime

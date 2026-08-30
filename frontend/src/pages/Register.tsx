@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import axios from 'axios';
 import { ShieldCheck } from 'lucide-react';
@@ -6,10 +6,27 @@ import { ShieldCheck } from 'lucide-react';
 export default function Register() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [department, setDepartment] = useState('Infrastructure');
+  const [department, setDepartment] = useState('');
+  const [departmentsList, setDepartmentsList] = useState<{name: string, is_active: boolean}[]>([]);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const fetchDepartments = async () => {
+      try {
+        const response = await axios.get('http://localhost:8000/departments');
+        const activeDepts = response.data.filter((d: any) => d.is_active);
+        setDepartmentsList(activeDepts);
+        if (activeDepts.length > 0) {
+          setDepartment(activeDepts[0].name);
+        }
+      } catch (err) {
+        console.error('Failed to fetch departments', err);
+      }
+    };
+    fetchDepartments();
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -92,11 +109,11 @@ export default function Register() {
                 value={department}
                 onChange={(e) => setDepartment(e.target.value)}
                 className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-green-700 focus:border-green-700 sm:text-sm rounded-md border bg-white"
+                required
               >
-                <option value="Infrastructure">Infrastructure</option>
-                <option value="Finance">Finance</option>
-                <option value="Healthcare">Healthcare</option>
-                <option value="Education">Education</option>
+                {departmentsList.map(dept => (
+                  <option key={dept.name} value={dept.name}>{dept.name}</option>
+                ))}
               </select>
             </div>
 

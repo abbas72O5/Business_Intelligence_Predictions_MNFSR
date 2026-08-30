@@ -5,7 +5,7 @@ from datetime import datetime
 from bson import ObjectId
 
 from database import db
-from models.user import UserCreate, UserLogin, UserResponse, RoleEnum
+from models.user import UserCreate, UserLogin, UserResponse, RoleEnum, AdminCreate
 from core.security import get_password_hash, verify_password, create_access_token, SECRET_KEY, ALGORITHM
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -36,6 +36,8 @@ def user_to_response(user) -> UserResponse:
         role=user["role"],
         department=user.get("department"),
         is_verified=user.get("is_verified", False),
+        is_active=user.get("is_active", True),
+        privileges=user.get("privileges", None),
         created_at=user["created_at"]
     )
 
@@ -49,6 +51,7 @@ async def register(user_in: UserCreate):
     user_dict["hashed_password"] = get_password_hash(user_dict.pop("password"))
     user_dict["role"] = RoleEnum.user.value
     user_dict["is_verified"] = False
+    user_dict["is_active"] = True
     user_dict["created_at"] = datetime.utcnow()
     
     result = await db.users.insert_one(user_dict)
@@ -63,6 +66,9 @@ async def login(user_in: UserLogin):
     
     if not user.get("is_verified", False) and user["role"] != RoleEnum.superadmin.value:
         raise HTTPException(status_code=403, detail="Account pending verification from department admin.")
+        
+    if not user.get("is_active", True):
+        raise HTTPException(status_code=403, detail="Account has been deactivated. Please contact an administrator.")
         
     access_token = create_access_token(data={"sub": str(user["_id"]), "role": user["role"], "department": user.get("department")})
     return {"access_token": access_token, "token_type": "bearer"}
@@ -96,5 +102,98 @@ async def verify_user(user_id: str, current_user = Depends(get_current_user)):
     if current_user["role"] == RoleEnum.admin.value and user_to_verify.get("department") != current_user.get("department"):
          raise HTTPException(status_code=403, detail="Cannot verify user from another department")
          
-    await db.users.update_one({"_id": ObjectId(user_id)}, {"$set": {"is_verified": True}})
+    await db.users.update_one({"_id": ObjectId(user_id)}, {"$set": {"is_verified": True, "is_active": True}})
     return {"message": "User verified successfully"}
+
+@router.get("/users", response_model=list[UserResponse])
+async def get_all_users(current_user = Depends(get_current_user)):
+    if current_user["role"] not in [RoleEnum.admin.value, RoleEnum.superadmin.value]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+        
+    query = {}
+    if current_user["role"] == RoleEnum.admin.value:
+        if not current_user.get("privileges", {}).get("can_manage_users", True):
+            raise HTTPException(status_code=403, detail="Not authorized to manage users")
+        query["department"] = current_user.get("department")
+        # Admins shouldn't see superadmins
+        query["role"] = {"$ne": RoleEnum.superadmin.value}
+        
+    cursor = db.users.find(query).sort("created_at", -1)
+    users = await cursor.to_list(length=1000)
+    return [user_to_response(u) for u in users]
+
+@router.put("/users/{user_id}/status")
+async def update_user_status(user_id: str, payload: dict, current_user = Depends(get_current_user)):
+    if current_user["role"] not in [RoleEnum.admin.value, RoleEnum.superadmin.value]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+        
+    target_user = await db.users.find_one({"_id": ObjectId(user_id)})
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    if current_user["role"] == RoleEnum.admin.value:
+        if not current_user.get("privileges", {}).get("can_manage_users", True):
+            raise HTTPException(status_code=403, detail="Not authorized to manage users")
+        if target_user.get("department") != current_user.get("department"):
+            raise HTTPException(status_code=403, detail="Cannot modify user from another department")
+        if target_user["role"] == RoleEnum.superadmin.value:
+            raise HTTPException(status_code=403, detail="Cannot modify superadmin")
+            
+    # Cannot deactivate yourself
+    if str(target_user["_id"]) == str(current_user["_id"]):
+         raise HTTPException(status_code=400, detail="Cannot modify your own status")
+         
+    is_active = payload.get("is_active", True)
+    
+    await db.users.update_one(
+        {"_id": ObjectId(user_id)}, 
+        {"$set": {"is_active": is_active}}
+    )
+    return {"message": f"User {'activated' if is_active else 'deactivated'} successfully"}
+
+@router.get("/admins", response_model=list[UserResponse])
+async def get_all_admins(current_user = Depends(get_current_user)):
+    if current_user["role"] != RoleEnum.superadmin.value:
+        raise HTTPException(status_code=403, detail="Only superadmin can view admins")
+        
+    cursor = db.users.find({"role": RoleEnum.admin.value}).sort("created_at", -1)
+    admins = await cursor.to_list(length=100)
+    return [user_to_response(u) for u in admins]
+
+@router.post("/admins", response_model=UserResponse)
+async def create_admin(admin_in: AdminCreate, current_user = Depends(get_current_user)):
+    if current_user["role"] != RoleEnum.superadmin.value:
+        raise HTTPException(status_code=403, detail="Only superadmin can create admins")
+        
+    existing_user = await db.users.find_one({"email": admin_in.email})
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+        
+    admin_dict = admin_in.model_dump()
+    admin_dict["hashed_password"] = get_password_hash(admin_dict.pop("password"))
+    admin_dict["role"] = RoleEnum.admin.value
+    admin_dict["is_verified"] = True
+    admin_dict["is_active"] = True
+    admin_dict["created_at"] = datetime.utcnow()
+    
+    result = await db.users.insert_one(admin_dict)
+    new_admin = await db.users.find_one({"_id": result.inserted_id})
+    return user_to_response(new_admin)
+
+@router.put("/admins/{admin_id}/privileges")
+async def update_admin_privileges(admin_id: str, payload: dict, current_user = Depends(get_current_user)):
+    if current_user["role"] != RoleEnum.superadmin.value:
+        raise HTTPException(status_code=403, detail="Only superadmin can modify admin privileges")
+        
+    target_admin = await db.users.find_one({"_id": ObjectId(admin_id)})
+    if not target_admin or target_admin["role"] != RoleEnum.admin.value:
+        raise HTTPException(status_code=404, detail="Admin not found")
+        
+    # Get the privileges object
+    privileges = payload.get("privileges", {})
+    
+    await db.users.update_one(
+        {"_id": ObjectId(admin_id)}, 
+        {"$set": {"privileges": privileges}}
+    )
+    return {"message": "Admin privileges updated successfully"}

@@ -8,6 +8,11 @@ interface User {
   role: 'user' | 'admin' | 'superadmin';
   department: string | null;
   is_verified: boolean;
+  is_active: boolean;
+  privileges?: {
+    can_manage_users: boolean;
+    can_view_activities: boolean;
+  };
 }
 
 interface AuthContextType {

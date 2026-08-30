@@ -9,6 +9,9 @@ import DataUpload from './pages/DataUpload';
 import DataSelection from './pages/DataSelection';
 import Observations from './pages/Observations';
 import Predictions from './pages/Predictions';
+import Users from './pages/Users';
+import Admins from './pages/Admins';
+import Departments from './pages/Departments';
 
 function App() {
   return (
@@ -29,6 +32,9 @@ function App() {
             <Route path="selection" element={<DataSelection />} />
             <Route path="observations" element={<Observations />} />
             <Route path="predictions" element={<Predictions />} />
+            <Route path="users" element={<Users />} />
+            <Route path="admins" element={<Admins />} />
+            <Route path="departments" element={<Departments />} />
           </Route>
         </Routes>
       </BrowserRouter>
