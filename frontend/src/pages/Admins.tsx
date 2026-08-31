@@ -96,6 +96,15 @@ export default function Admins() {
       if (selectedAdmin?.id === adminId) {
         setSelectedAdmin(prev => prev ? { ...prev, privileges: privilegesToUpdate } : null);
       }
+      
+      // Log activity
+      const targetAdmin = admins.find(a => a.id === adminId);
+      if (targetAdmin) {
+        axios.post('http://localhost:8000/activities', {
+          action: 'Update Admin Privileges',
+          details: { user: targetAdmin.email, department: targetAdmin.department, updated_field: field }
+        }, { headers: { Authorization: `Bearer ${token}` } }).catch(e => console.error(e));
+      }
     } catch (err: any) {
       alert(err.response?.data?.detail || 'Failed to update privileges');
     }
@@ -114,6 +123,19 @@ export default function Admins() {
         );
       }
       fetchAdmins();
+      
+      // Log activity
+      const targetAdmin = admins.find(a => a.id === adminId);
+      if (targetAdmin) {
+        let actionStr = 'Verify Admin';
+        if (!isPending) {
+          actionStr = currentIsActive ? 'Deactivate Admin' : 'Activate Admin';
+        }
+        axios.post('http://localhost:8000/activities', {
+          action: actionStr,
+          details: { user: targetAdmin.email, department: targetAdmin.department }
+        }, { headers: { Authorization: `Bearer ${token}` } }).catch(e => console.error(e));
+      }
     } catch (err: any) {
       alert(err.response?.data?.detail || 'Failed to update admin status');
     }
@@ -137,6 +159,12 @@ export default function Admins() {
       setNewDepartment('');
       setNewPrivileges({ can_manage_users: true, can_view_activities: true });
       fetchAdmins();
+      
+      // Log activity
+      axios.post('http://localhost:8000/activities', {
+        action: 'Create Admin',
+        details: { user: newEmail, department: newDepartment }
+      }, { headers: { Authorization: `Bearer ${token}` } }).catch(e => console.error(e));
     } catch (err: any) {
       alert(err.response?.data?.detail || 'Failed to create admin');
     }

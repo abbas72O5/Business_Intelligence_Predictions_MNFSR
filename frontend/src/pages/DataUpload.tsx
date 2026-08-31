@@ -71,6 +71,12 @@ export default function DataUpload() {
       });
       setSuccess(`${file.name} uploaded successfully!`);
       fetchFiles();
+      
+      // Log activity
+      axios.post('http://localhost:8000/activities', {
+        action: 'Upload Data',
+        details: { dataset: file.name }
+      }, { headers: { Authorization: `Bearer ${token}` } }).catch(e => console.error(e));
     } catch (err: any) {
       setError(err.response?.data?.detail || 'An error occurred during upload.');
     } finally {
@@ -95,6 +101,15 @@ export default function DataUpload() {
           }
           setSuccess('File deleted successfully.');
           setTimeout(() => setSuccess(''), 3000);
+          
+          // Log activity
+          const deletedFile = files.find(f => f.table_id === tableId);
+          if (deletedFile) {
+            axios.post('http://localhost:8000/activities', {
+              action: 'Delete Data',
+              details: { dataset: deletedFile.table_name }
+            }, { headers: { Authorization: `Bearer ${token}` } }).catch(e => console.error(e));
+          }
         } catch (err: any) {
           console.error('Failed to delete file', err);
           setError(err.response?.data?.detail || 'Failed to delete file.');

@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from routers import auth, files, query, relationships, dashboards, departments
+from routers import auth, files, query, relationships, dashboards, departments, activities
 from database import db
 from datetime import datetime
 
@@ -21,6 +21,7 @@ app.include_router(query.router)
 app.include_router(relationships.router)
 app.include_router(dashboards.router)
 app.include_router(departments.router)
+app.include_router(activities.router)
 
 @app.on_event("startup")
 async def seed_departments():

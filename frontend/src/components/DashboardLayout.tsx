@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LogOut, Home, UploadCloud, Database, LineChart, Brain, Menu, Users, ShieldCheck, Building2 } from 'lucide-react';
+import { LogOut, Home, UploadCloud, Database, LineChart, Brain, Menu, Users, ShieldCheck, Building2, Clock } from 'lucide-react';
 
 export default function DashboardLayout() {
   const { user, logout } = useAuth();
@@ -19,7 +19,11 @@ export default function DashboardLayout() {
   if (user?.role === 'superadmin' || (user?.role === 'admin' && user?.privileges?.can_manage_users !== false)) {
     navItems.push({ name: 'Users', path: '/dashboard/users', icon: Users });
   }
-  
+
+  if (user?.role === 'superadmin' || (user?.role === 'admin' && user?.privileges?.can_view_activities !== false)) {
+    navItems.push({ name: 'Audit Logs', path: '/dashboard/audit-logs', icon: Clock });
+  }
+
   if (user?.role === 'superadmin') {
     navItems.push({ name: 'Admins', path: '/dashboard/admins', icon: ShieldCheck });
     navItems.push({ name: 'Departments', path: '/dashboard/departments', icon: Building2 });
@@ -107,3 +111,6 @@ export default function DashboardLayout() {
     </div>
   );
 }
+
+
+

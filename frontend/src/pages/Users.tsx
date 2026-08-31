@@ -60,6 +60,19 @@ export default function Users() {
       }
       // Refresh the list
       fetchUsers();
+      
+      // Log activity
+      const targetUser = users.find(u => u.id === userId);
+      if (targetUser) {
+        let actionStr = 'Verify User';
+        if (!isPending) {
+          actionStr = currentIsActive ? 'Deactivate User' : 'Activate User';
+        }
+        axios.post('http://localhost:8000/activities', {
+          action: actionStr,
+          details: { user: targetUser.email, department: targetUser.department }
+        }, { headers: { Authorization: `Bearer ${token}` } }).catch(e => console.error(e));
+      }
     } catch (err: any) {
       alert(err.response?.data?.detail || 'Failed to update user status');
     }

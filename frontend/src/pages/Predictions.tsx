@@ -197,6 +197,12 @@ export default function Predictions() {
         setDashboardName('');
         showToast("Prediction Dashboard saved successfully!");
       }
+
+      // Log activity
+      axios.post('http://localhost:8000/activities', {
+        action: activeDashboard ? 'Update Prediction Dashboard' : 'Save Prediction Dashboard',
+        details: { visuals: canvasVisuals.map(c => c.chart.chartType) }
+      }, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }).catch(e => console.error(e));
     } catch (err) {
       console.error(err);
       showToast("Failed to save dashboard.", "error");
@@ -225,6 +231,12 @@ export default function Predictions() {
       setActiveDashboard({ id: response.data.dashboard_id, name: response.data.name });
       setShowLoadModal(false);
       showToast("Dashboard loaded successfully!");
+      
+      // Log activity
+      axios.post('http://localhost:8000/activities', {
+        action: 'Load Prediction Dashboard',
+        details: { dataset: response.data.name, visuals: response.data.charts.map((c: any) => c.chart?.chartType || 'unknown') }
+      }, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }).catch(e => console.error(e));
     } catch (err) {
       console.error(err);
       showToast("Failed to load dashboard.", "error");
@@ -254,6 +266,12 @@ export default function Predictions() {
         link.href = dataUrl;
         link.click();
       }
+
+      // Log activity
+      axios.post('http://localhost:8000/activities', {
+        action: `Export Prediction Dashboard (${format.toUpperCase()})`,
+        details: { visuals: canvasVisuals.map(c => c.chart.chartType) }
+      }, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }).catch(e => console.error(e));
     } catch (err) {
       console.error("Export failed:", err);
     }
@@ -381,6 +399,15 @@ export default function Predictions() {
         isConfiguring: false,
         loading: false
       });
+
+      // Log activity
+      axios.post('http://localhost:8000/activities', {
+        action: 'Generate Prediction Visual',
+        details: {
+          dataset: ds.type === 'table' ? ds.data.table_name : ds.data.model_name,
+          visuals: [item.chart.chartType]
+        }
+      }, { headers: { Authorization: `Bearer ${token}` } }).catch(e => console.error(e));
     } catch (err: any) {
       console.error(err);
       let msg = "Failed to generate forecast.";

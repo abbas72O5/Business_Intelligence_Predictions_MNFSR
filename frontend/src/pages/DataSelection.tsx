@@ -544,6 +544,12 @@ function DataSelectionCanvas() {
           headers: { Authorization: `Bearer ${token}` }
         });
         setErrorPopup({ title: 'Success', message: 'Model updated successfully!' });
+        
+        // Log activity
+        axios.post('http://localhost:8000/activities', {
+          action: 'Update Data Model / Relationships',
+          details: { dataset: activeModel.model_name, relationships: payload.joins.map(j => `${j?.source_column}-${j?.target_column}`) }
+        }, { headers: { Authorization: `Bearer ${token}` } }).catch(e => console.error(e));
       } catch (err: any) {
         const detail = err.response?.data?.detail;
         setErrorPopup({ title: 'Error', message: typeof detail === 'string' ? detail : JSON.stringify(detail) || 'Update Model failed' });
@@ -567,6 +573,12 @@ function DataSelectionCanvas() {
         setIsSaveModelModalOpen(false);
         setNewModelName('');
         setErrorPopup({ title: 'Success', message: 'Model saved successfully! You can now use it in Observations.' });
+        
+        // Log activity
+        axios.post('http://localhost:8000/activities', {
+          action: 'Save Data Model / Relationships',
+          details: { dataset: response.data.model_name, relationships: payload.joins.map(j => `${j?.source_column}-${j?.target_column}`) }
+        }, { headers: { Authorization: `Bearer ${token}` } }).catch(e => console.error(e));
       } catch (err: any) {
         const detail = err.response?.data?.detail;
         setError(typeof detail === 'string' ? detail : JSON.stringify(detail) || 'Save Model failed');

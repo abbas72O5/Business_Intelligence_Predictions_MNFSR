@@ -12,6 +12,7 @@ import Predictions from './pages/Predictions';
 import Users from './pages/Users';
 import Admins from './pages/Admins';
 import Departments from './pages/Departments';
+import AuditLogs from './pages/AuditLogs';
 
 function App() {
   return (
@@ -21,7 +22,7 @@ function App() {
           <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
-          
+
           <Route path="/dashboard" element={
             <ProtectedRoute>
               <DashboardLayout />
@@ -35,6 +36,7 @@ function App() {
             <Route path="users" element={<Users />} />
             <Route path="admins" element={<Admins />} />
             <Route path="departments" element={<Departments />} />
+            <Route path="audit-logs" element={<AuditLogs />} />
           </Route>
         </Routes>
       </BrowserRouter>

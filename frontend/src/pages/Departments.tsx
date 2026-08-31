@@ -52,6 +52,12 @@ export default function Departments() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       fetchDepartments();
+      
+      // Log activity
+      axios.post('http://localhost:8000/activities', {
+        action: currentIsActive ? 'Deactivate Department' : 'Activate Department',
+        details: { department: departmentName }
+      }, { headers: { Authorization: `Bearer ${token}` } }).catch(e => console.error(e));
     } catch (err: any) {
       alert(err.response?.data?.detail || 'Failed to update department status');
     }
@@ -69,6 +75,12 @@ export default function Departments() {
       setShowModal(false);
       setNewDepartmentName('');
       fetchDepartments();
+      
+      // Log activity
+      axios.post('http://localhost:8000/activities', {
+        action: 'Create Department',
+        details: { department: newDepartmentName }
+      }, { headers: { Authorization: `Bearer ${token}` } }).catch(e => console.error(e));
     } catch (err: any) {
       alert(err.response?.data?.detail || 'Failed to create department');
     }

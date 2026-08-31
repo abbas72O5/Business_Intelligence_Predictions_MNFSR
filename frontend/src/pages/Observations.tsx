@@ -339,6 +339,15 @@ export default function Observations() {
 
       updateChart(chart.id, { chartData: res.data });
       setConfiguringChartId(null);
+      
+      // Log activity
+      axios.post('http://localhost:8000/activities', {
+        action: 'Generate Observation Visual',
+        details: {
+          dataset: chart.selectedDataset.type === 'table' ? chart.selectedDataset.data.table_name : chart.selectedDataset.data.model_name,
+          visuals: [chart.chartType]
+        }
+      }, { headers: { Authorization: `Bearer ${token}` } }).catch(e => console.error(e));
     } catch (err: any) {
       console.error(err);
       let msg = "Failed to generate observation.";
@@ -383,6 +392,12 @@ export default function Observations() {
         link.href = dataUrl;
         link.click();
       }
+
+      // Log activity
+      axios.post('http://localhost:8000/activities', {
+        action: `Export Observation Dashboard (${format.toUpperCase()})`,
+        details: { visuals: charts.map(c => c.chartType) }
+      }, { headers: { Authorization: `Bearer ${token}` } }).catch(e => console.error(e));
     } catch (err) {
       console.error("Export failed:", err);
     }
@@ -413,6 +428,12 @@ export default function Observations() {
         setDashboardName('');
         showToast("Dashboard saved successfully!");
       }
+
+      // Log activity
+      axios.post('http://localhost:8000/activities', {
+        action: activeDashboard ? 'Update Observation Dashboard' : 'Save Observation Dashboard',
+        details: { visuals: charts.map(c => c.chartType) }
+      }, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }).catch(e => console.error(e));
     } catch (err) {
       console.error(err);
       showToast("Failed to save dashboard.", "error");
@@ -441,6 +462,12 @@ export default function Observations() {
       setActiveDashboard({ id: response.data.dashboard_id, name: response.data.name });
       setShowLoadModal(false);
       showToast("Dashboard loaded successfully!");
+      
+      // Log activity
+      axios.post('http://localhost:8000/activities', {
+        action: 'Load Observation Dashboard',
+        details: { dataset: response.data.name, visuals: response.data.charts.map((c: any) => c.chartType) }
+      }, { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }).catch(e => console.error(e));
     } catch (err) {
       console.error(err);
       showToast("Failed to load dashboard.", "error");
