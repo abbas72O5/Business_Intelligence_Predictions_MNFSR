@@ -2,7 +2,56 @@
 
 A comprehensive Business Intelligence and Analytics platform designed for ministry departments to securely manage, analyze, and forecast project development portfolios.
 
+## Setup & Deployment Instructions
+
+### Prerequisites
+- Node.js (v18+)
+- Python (3.10+)
+- MongoDB (running locally or via Atlas)
+
+### 1. Backend Setup
+1. Navigate to the `backend` directory:
+   ```bash
+   cd backend
+   ```
+2. Create and activate a virtual environment (optional but recommended):
+   ```bash
+   python -m venv venv
+   source venv/bin/activate  # On Windows use: venv\Scripts\activate
+   ```
+3. Install the Python dependencies:
+   ```bash
+   pip install -r ../requirements.txt
+   ```
+4. Start the FastAPI server:
+   ```bash
+   uvicorn main:app --reload --host 0.0.0.0 --port 8000
+   ```
+   *(Note: The server will automatically seed the default departments on the first run)*
+
+### 2. Frontend Setup
+1. Open a new terminal and navigate to the `frontend` directory:
+   ```bash
+   cd frontend
+   ```
+2. Install the Node.js dependencies:
+   ```bash
+   npm install
+   ```
+3. Start the Vite development server:
+   ```bash
+   npm run dev
+   ```
+
+### 3. Usage
+Once both servers are running:
+1. Open your browser and navigate to `http://localhost:5173`
+2. Register a new Superadmin account to gain full access to the system.
+
+---
+
 ## Features Implemented So Far
+
 
 - **Secure Departmental Access (Authentication & RBAC):**
   - Robust JWT-based authentication via FastAPI and MongoDB.

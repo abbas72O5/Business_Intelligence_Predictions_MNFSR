@@ -107,7 +107,7 @@ export default function DataUpload() {
           if (deletedFile) {
             axios.post('http://localhost:8000/activities', {
               action: 'Delete Data',
-              details: { dataset: deletedFile.table_name }
+              details: { dataset: deletedFile.filename }
             }, { headers: { Authorization: `Bearer ${token}` } }).catch(e => console.error(e));
           }
         } catch (err: any) {
