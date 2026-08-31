@@ -344,7 +344,7 @@ export default function Observations() {
       axios.post('http://localhost:8000/activities', {
         action: 'Generate Observation Visual',
         details: {
-          dataset: chart.selectedDataset.type === 'table' ? chart.selectedDataset.data.table_name : chart.selectedDataset.data.model_name,
+          dataset: chart.selectedDataset.type === 'table' ? chart.selectedDataset.data.filename : chart.selectedDataset.data.name,
           visuals: [chart.chartType]
         }
       }, { headers: { Authorization: `Bearer ${token}` } }).catch(e => console.error(e));

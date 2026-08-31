@@ -546,9 +546,18 @@ function DataSelectionCanvas() {
         setErrorPopup({ title: 'Success', message: 'Model updated successfully!' });
         
         // Log activity
+        const datasetsUsed = Array.from(new Set(nodes.map(n => n.data.filename))).join(', ');
+        const formattedRelationships = payload.joins.map(j => {
+          const sourceNode = nodes.find(n => n.data.table_id === j?.source_table_id);
+          const targetNode = nodes.find(n => n.data.table_id === j?.target_table_id);
+          const sourceName = sourceNode ? sourceNode.data.filename : 'Unknown';
+          const targetName = targetNode ? targetNode.data.filename : 'Unknown';
+          return `${j?.source_column}-${j?.target_column} (${sourceName} - ${targetName})`;
+        });
+
         axios.post('http://localhost:8000/activities', {
           action: 'Update Data Model / Relationships',
-          details: { dataset: activeModel.model_name, relationships: payload.joins.map(j => `${j?.source_column}-${j?.target_column}`) }
+          details: { dataset: `${activeModel.model_name} (${datasetsUsed})`, relationships: formattedRelationships }
         }, { headers: { Authorization: `Bearer ${token}` } }).catch(e => console.error(e));
       } catch (err: any) {
         const detail = err.response?.data?.detail;
@@ -575,9 +584,18 @@ function DataSelectionCanvas() {
         setErrorPopup({ title: 'Success', message: 'Model saved successfully! You can now use it in Observations.' });
         
         // Log activity
+        const datasetsUsed = Array.from(new Set(nodes.map(n => n.data.filename))).join(', ');
+        const formattedRelationships = payload.joins.map(j => {
+          const sourceNode = nodes.find(n => n.data.table_id === j?.source_table_id);
+          const targetNode = nodes.find(n => n.data.table_id === j?.target_table_id);
+          const sourceName = sourceNode ? sourceNode.data.filename : 'Unknown';
+          const targetName = targetNode ? targetNode.data.filename : 'Unknown';
+          return `${j?.source_column}-${j?.target_column} (${sourceName} - ${targetName})`;
+        });
+
         axios.post('http://localhost:8000/activities', {
           action: 'Save Data Model / Relationships',
-          details: { dataset: response.data.model_name, relationships: payload.joins.map(j => `${j?.source_column}-${j?.target_column}`) }
+          details: { dataset: `${response.data.model_name} (${datasetsUsed})`, relationships: formattedRelationships }
         }, { headers: { Authorization: `Bearer ${token}` } }).catch(e => console.error(e));
       } catch (err: any) {
         const detail = err.response?.data?.detail;

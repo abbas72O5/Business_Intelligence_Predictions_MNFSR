@@ -675,19 +675,21 @@ async def generate_prediction(request: PredictionQueryRequest, current_user = De
                 if len(y_true_all) > 1:
                     r2 = r2_score(y_true_all, y_pred_all)
                     accuracy = min(95.0, max(0.0, r2 * 100.0))
+                    accuracy = accuracy * (min(len(y_true_all), 24) / 24.0)
                 else:
                     accuracy = 0.0
                     
-                return {"records": [{"map_html": map_html}], "metrics": {"confidence_score": accuracy, "type": "R2"}}
+                return {"records": [{"map_html": map_html}], "metrics": {"confidence_score": accuracy, "type": "R2", "row_count": len(y_true_all)}}
                 
             from sklearn.metrics import r2_score
             if len(y_true_all) > 1:
                 r2 = r2_score(y_true_all, y_pred_all)
                 accuracy = min(95.0, max(0.0, r2 * 100.0))
+                accuracy = accuracy * (min(len(y_true_all), 24) / 24.0)
             else:
                 accuracy = 0.0
                 
-            return {"records": records, "metrics": {"confidence_score": accuracy, "type": "R2"}}
+            return {"records": records, "metrics": {"confidence_score": accuracy, "type": "R2", "row_count": len(y_true_all)}}
 
         # Detect numeric if not already passed in x_cast_type
         if not is_numeric:
@@ -738,12 +740,13 @@ async def generate_prediction(request: PredictionQueryRequest, current_user = De
                 if np.any(mask):
                     mape = np.mean(np.abs((actual[mask] - pred[mask]) / actual[mask]))
                     accuracy = min(95.0, max(0.0, (1.0 - mape) * 100.0))
+                    accuracy = accuracy * (min(len(df), 24) / 24.0)
                 else:
                     accuracy = 0.0
             else:
                 accuracy = 0.0
                 
-            return {"records": combined.to_dict(orient="records"), "metrics": {"confidence_score": accuracy, "type": "MAPE"}}
+            return {"records": combined.to_dict(orient="records"), "metrics": {"confidence_score": accuracy, "type": "MAPE", "row_count": len(df)}}
             
         else:
             # NUMERIC (Linear Regression)
@@ -815,10 +818,11 @@ async def generate_prediction(request: PredictionQueryRequest, current_user = De
             if len(y) > 1:
                 r2 = r2_score(y, yhat_historical)
                 accuracy = min(95.0, max(0.0, r2 * 100.0))
+                accuracy = accuracy * (min(len(df), 24) / 24.0)
             else:
                 accuracy = 0.0
                 
-            return {"records": records, "metrics": {"confidence_score": accuracy, "type": "R2"}}
+            return {"records": records, "metrics": {"confidence_score": accuracy, "type": "R2", "row_count": len(df)}}
 
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Forecast failed: {str(e)}")

@@ -32,6 +32,7 @@ interface CanvasItem {
   predictionMetrics?: {
     confidence_score: number;
     type: string;
+    row_count?: number;
   };
   loading: boolean;
   error: string | null;
@@ -332,6 +333,11 @@ export default function Predictions() {
   };
 
   const handleGenerateForecast = async (item: CanvasItem) => {
+    const unsupportedTypes = ['pie', 'table', 'heatmap', 'treemap'];
+    if (unsupportedTypes.includes(item.chart.chartType)) {
+      updateCanvasItem(item.id, { error: "Prediction not supported for this visual" });
+      return;
+    }
     if (!item.predictionConfig.dateCol || !item.predictionConfig.valCol) {
       updateCanvasItem(item.id, { error: "Please select a date column and a value column." });
       return;
@@ -404,7 +410,7 @@ export default function Predictions() {
       axios.post('http://localhost:8000/activities', {
         action: 'Generate Prediction Visual',
         details: {
-          dataset: ds.type === 'table' ? ds.data.table_name : ds.data.model_name,
+          dataset: ds.type === 'table' ? ds.data.filename : ds.data.name,
           visuals: [item.chart.chartType]
         }
       }, { headers: { Authorization: `Bearer ${token}` } }).catch(e => console.error(e));
@@ -427,9 +433,18 @@ export default function Predictions() {
 
     let confText = "Prediction Confidence: N/A";
     let confColor = "text-gray-500";
+    let rowWarning = null;
+
+    if (item.predictionMetrics && item.predictionMetrics.row_count !== undefined) {
+      if (item.predictionMetrics.row_count < 12) {
+        rowWarning = `⚠️ Insufficient Data: Forecasting requires at least 12 months of historical data to identify reliable trends. Current data only has ${item.predictionMetrics.row_count} months.`;
+      }
+    }
 
     if (item.predictionMetrics && item.predictionMetrics.confidence_score !== undefined) {
       const score = item.predictionMetrics.confidence_score;
+      const hasFewPoints = item.predictionMetrics.row_count !== undefined && item.predictionMetrics.row_count < 12;
+
       if (score > 85) {
         confText = `Prediction Confidence: ${score.toFixed(1)}% - High Reliability (Strong Data Patterns)`;
         confColor = "text-green-600";
@@ -437,7 +452,11 @@ export default function Predictions() {
         confText = `Prediction Confidence: ${score.toFixed(1)}% - Moderate Reliability (Significant Variance)`;
         confColor = "text-orange-500";
       } else {
-        confText = `Prediction Confidence: ${score.toFixed(1)}% - Low Reliability (Unpredictable Data)`;
+        if (hasFewPoints) {
+           confText = `Prediction Confidence: ${score.toFixed(1)}% - Low Reliability (Too few data points)`;
+        } else {
+           confText = `Prediction Confidence: ${score.toFixed(1)}% - Low Reliability (Unpredictable Data)`;
+        }
         confColor = "text-red-500";
       }
     }
@@ -458,8 +477,9 @@ export default function Predictions() {
           <div className="flex-1 w-full relative">
             <ChartRenderer chart={updatedChart} overrideWidth="100%" overrideHeight="100%" />
           </div>
-          <div className={`absolute bottom-1 left-0 right-0 text-center text-xs font-medium z-10 bg-white/90 py-1 border-t border-gray-100 shadow-sm ${confColor}`}>
-            {confText}
+          <div className={`absolute bottom-1 left-0 right-0 text-center text-xs font-medium z-10 bg-white/90 py-1 border-t border-gray-100 shadow-sm flex flex-col items-center justify-center ${confColor}`}>
+            {rowWarning && <span className="text-yellow-600 mb-0.5">{rowWarning}</span>}
+            <span>{confText}</span>
           </div>
         </div>
       );
@@ -490,8 +510,9 @@ export default function Predictions() {
           <div className="flex-1 w-full relative">
             <ChartRenderer chart={updatedChart} overrideWidth="100%" overrideHeight="100%" />
           </div>
-          <div className={`absolute bottom-1 left-0 right-0 text-center text-xs font-medium z-10 bg-white/90 py-1 border-t border-gray-100 shadow-sm ${confColor}`}>
-            {confText}
+          <div className={`absolute bottom-1 left-0 right-0 text-center text-xs font-medium z-10 bg-white/90 py-1 border-t border-gray-100 shadow-sm flex flex-col items-center justify-center ${confColor}`}>
+            {rowWarning && <span className="text-yellow-600 mb-0.5">{rowWarning}</span>}
+            <span>{confText}</span>
           </div>
         </div>
       );
@@ -555,8 +576,9 @@ export default function Predictions() {
             style={{ width: '100%', height: '100%' }}
           />
         </div>
-        <div className={`absolute bottom-1 left-0 right-0 text-center text-xs font-medium z-10 bg-white/90 py-1 border-t border-gray-100 shadow-sm ${confColor}`}>
-          {confText}
+        <div className={`absolute bottom-1 left-0 right-0 text-center text-xs font-medium z-10 bg-white/90 py-1 border-t border-gray-100 shadow-sm flex flex-col items-center justify-center ${confColor}`}>
+          {rowWarning && <span className="text-yellow-600 mb-0.5">{rowWarning}</span>}
+          <span>{confText}</span>
         </div>
       </div>
     );
@@ -657,7 +679,7 @@ export default function Predictions() {
                       dragItem.current = index;
                       if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
                     }}
-                    onDragEnter={(e) => {
+                    onDragEnter={() => {
                       dragOverItem.current = index;
                     }}
                     onDragEnd={handleSort}
