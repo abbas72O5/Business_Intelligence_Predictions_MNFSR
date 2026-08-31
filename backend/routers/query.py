@@ -674,7 +674,7 @@ async def generate_prediction(request: PredictionQueryRequest, current_user = De
                 from sklearn.metrics import r2_score
                 if len(y_true_all) > 1:
                     r2 = r2_score(y_true_all, y_pred_all)
-                    accuracy = max(0.0, r2 * 100.0)
+                    accuracy = min(95.0, max(0.0, r2 * 100.0))
                 else:
                     accuracy = 0.0
                     
@@ -683,7 +683,7 @@ async def generate_prediction(request: PredictionQueryRequest, current_user = De
             from sklearn.metrics import r2_score
             if len(y_true_all) > 1:
                 r2 = r2_score(y_true_all, y_pred_all)
-                accuracy = max(0.0, r2 * 100.0)
+                accuracy = min(95.0, max(0.0, r2 * 100.0))
             else:
                 accuracy = 0.0
                 
@@ -737,7 +737,7 @@ async def generate_prediction(request: PredictionQueryRequest, current_user = De
                 mask = actual != 0
                 if np.any(mask):
                     mape = np.mean(np.abs((actual[mask] - pred[mask]) / actual[mask]))
-                    accuracy = max(0.0, (1.0 - mape) * 100.0)
+                    accuracy = min(95.0, max(0.0, (1.0 - mape) * 100.0))
                 else:
                     accuracy = 0.0
             else:
@@ -814,7 +814,7 @@ async def generate_prediction(request: PredictionQueryRequest, current_user = De
             from sklearn.metrics import r2_score
             if len(y) > 1:
                 r2 = r2_score(y, yhat_historical)
-                accuracy = max(0.0, r2 * 100.0)
+                accuracy = min(95.0, max(0.0, r2 * 100.0))
             else:
                 accuracy = 0.0
                 

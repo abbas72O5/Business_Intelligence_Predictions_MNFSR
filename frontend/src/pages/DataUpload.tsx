@@ -46,9 +46,14 @@ export default function DataUpload() {
     fetchFiles();
   }, [fetchFiles]);
 
-  const onDrop = useCallback(async (acceptedFiles: File[]) => {
+  const onDrop = useCallback(async (acceptedFiles: File[], fileRejections: any[]) => {
     setError('');
     setSuccess('');
+
+    if (fileRejections.length > 0) {
+      setError('Unsupported file format. Only .csv and .xlsx files are allowed.');
+      return;
+    }
 
     if (acceptedFiles.length === 0) return;
     const file = acceptedFiles[0];

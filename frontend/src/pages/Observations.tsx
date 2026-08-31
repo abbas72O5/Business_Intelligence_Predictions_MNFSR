@@ -339,7 +339,7 @@ export default function Observations() {
 
       updateChart(chart.id, { chartData: res.data });
       setConfiguringChartId(null);
-      
+
       // Log activity
       axios.post('http://localhost:8000/activities', {
         action: 'Generate Observation Visual',
@@ -462,7 +462,7 @@ export default function Observations() {
       setActiveDashboard({ id: response.data.dashboard_id, name: response.data.name });
       setShowLoadModal(false);
       showToast("Dashboard loaded successfully!");
-      
+
       // Log activity
       axios.post('http://localhost:8000/activities', {
         action: 'Load Observation Dashboard',
@@ -1078,7 +1078,7 @@ export default function Observations() {
                 disabled={loading[configuringChart.id] || !configuringChart.selectedDataset || Object.values(getValidationErrors(configuringChart)).some(e => e.includes('Error'))}
                 className="w-full bg-green-600 text-white py-2 rounded-md font-bold hover:bg-green-700 transition-colors disabled:opacity-50"
               >
-                {loading[configuringChart.id] ? 'Processing...' : 'Generate & Save'}
+                {loading[configuringChart.id] ? 'Processing...' : 'Generate'}
               </button>
             </div>
           </div>
