@@ -35,6 +35,7 @@ def user_to_response(user) -> UserResponse:
         email=user["email"],
         role=user["role"],
         department=user.get("department"),
+        mill_id=user.get("mill_id"),
         is_verified=user.get("is_verified", False),
         is_active=user.get("is_active", True),
         privileges=user.get("privileges", None),
@@ -197,3 +198,49 @@ async def update_admin_privileges(admin_id: str, payload: dict, current_user = D
         {"$set": {"privileges": privileges}}
     )
     return {"message": "Admin privileges updated successfully"}
+@router.post("/users", response_model=UserResponse)
+async def create_user_by_admin(user_in: UserCreate, current_user = Depends(get_current_user)):
+    if current_user["role"] not in [RoleEnum.admin.value, RoleEnum.superadmin.value]:
+        raise HTTPException(status_code=403, detail="Only admins can create users directly")
+    
+    privileges = current_user.get("privileges", {})
+    if current_user["role"] == RoleEnum.admin.value and not privileges.get("can_manage_users", True):
+        raise HTTPException(status_code=403, detail="You do not have privilege to manage users")
+
+    existing_user = await db.users.find_one({"email": user_in.email})
+    if existing_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    user_dict = user_in.model_dump()
+    user_dict["hashed_password"] = get_password_hash(user_dict.pop("password"))
+    user_dict["role"] = RoleEnum.user.value
+    
+    if current_user["role"] == RoleEnum.admin.value:
+        user_dict["department"] = current_user.get("department")
+    elif not user_dict.get("department"):
+        user_dict["department"] = "Global"
+        
+    user_dict["is_verified"] = True
+    user_dict["is_active"] = True
+    user_dict["created_at"] = datetime.utcnow()
+    
+    owner_name = user_dict.pop("owner_name", "")
+    mill_name = user_dict.pop("mill_name", "")
+    
+    # Create the mill profile
+    mill_profile = {
+        "name": mill_name or "New Mill",
+        "owner_name": owner_name or "Unknown Owner",
+        "location": "",
+        "installed_spindles": 0,
+        "installed_rotors": 0,
+        "created_at": datetime.utcnow()
+    }
+    mill_result = await db.mills.insert_one(mill_profile)
+    user_dict["mill_id"] = str(mill_result.inserted_id)
+    
+    result = await db.users.insert_one(user_dict)
+    new_user = await db.users.find_one({"_id": result.inserted_id})
+    return user_to_response(new_user)
+
+

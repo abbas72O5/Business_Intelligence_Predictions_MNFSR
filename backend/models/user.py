@@ -12,6 +12,8 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str
     department: Optional[str] = None
+    mill_name: Optional[str] = None  # Temporary during creation, converted to mill_id
+    owner_name: Optional[str] = None # Temporary during creation
 
 class UserLogin(BaseModel):
     email: EmailStr
@@ -32,6 +34,7 @@ class UserResponse(BaseModel):
     email: EmailStr
     role: RoleEnum
     department: Optional[str] = None
+    mill_id: Optional[str] = None
     is_verified: bool
     is_active: bool = True
     privileges: Optional[Privileges] = None

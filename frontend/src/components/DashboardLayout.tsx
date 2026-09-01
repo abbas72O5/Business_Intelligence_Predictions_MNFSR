@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LogOut, Home, UploadCloud, Database, LineChart, Brain, Menu, Users, ShieldCheck, Building2, Clock } from 'lucide-react';
+import { LogOut, Home, UploadCloud, Database, LineChart, Brain, Menu, Users, ShieldCheck, Building2, Clock, User } from 'lucide-react';
 
 export default function DashboardLayout() {
   const { user, logout } = useAuth();
@@ -10,6 +10,7 @@ export default function DashboardLayout() {
 
   const navItems = [
     { name: 'Overview', path: '/dashboard', icon: Home },
+    { name: 'Profile', path: '/dashboard/profile', icon: User },
     { name: 'Data Uploading', path: '/dashboard/upload', icon: UploadCloud },
     { name: 'Data Selection', path: '/dashboard/selection', icon: Database },
     { name: 'Observations', path: '/dashboard/observations', icon: LineChart },

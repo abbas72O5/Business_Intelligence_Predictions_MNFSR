@@ -1,13 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
-import { Search, Shield, ShieldAlert, CheckCircle, XCircle, Clock, UserCheck, UserX } from 'lucide-react';
+import { Search, Shield, ShieldAlert, CheckCircle, XCircle, Clock, UserCheck, UserX, Plus, X } from 'lucide-react';
 
 interface UserData {
   id: string;
   email: string;
   role: string;
   department: string | null;
+  owner_name: string | null;
+  mill_name: string | null;
   is_verified: boolean;
   is_active: boolean;
   created_at: string;
@@ -22,6 +24,14 @@ export default function Users() {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('All');
   const [error, setError] = useState<string | null>(null);
+
+  // Modal State
+  const [showModal, setShowModal] = useState(false);
+  const [newEmail, setNewEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [newOwnerName, setNewOwnerName] = useState('');
+  const [newMillName, setNewMillName] = useState('');
+  const [creating, setCreating] = useState(false);
 
   const fetchUsers = async () => {
     try {
@@ -47,21 +57,17 @@ export default function Users() {
   const toggleUserStatus = async (userId: string, currentIsActive: boolean, isPending: boolean) => {
     try {
       if (isPending) {
-        // Pending users need verification
         await axios.post(`http://localhost:8000/auth/verify/${userId}`, {}, {
           headers: { Authorization: `Bearer ${token}` }
         });
       } else {
-        // Active/Inactive users just need their active status toggled
         await axios.put(`http://localhost:8000/auth/users/${userId}/status`, 
           { is_active: !currentIsActive },
           { headers: { Authorization: `Bearer ${token}` } }
         );
       }
-      // Refresh the list
       fetchUsers();
       
-      // Log activity
       const targetUser = users.find(u => u.id === userId);
       if (targetUser) {
         let actionStr = 'Verify User';
@@ -78,6 +84,40 @@ export default function Users() {
     }
   };
 
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newEmail || !newPassword || !newOwnerName || !newMillName) return;
+
+    try {
+      setCreating(true);
+      await axios.post('http://localhost:8000/auth/users', {
+        email: newEmail,
+        password: newPassword,
+        owner_name: newOwnerName,
+        mill_name: newMillName
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      // Log activity
+      axios.post('http://localhost:8000/activities', {
+        action: 'Create User',
+        details: { email: newEmail, mill: newMillName }
+      }, { headers: { Authorization: `Bearer ${token}` } }).catch(e => console.error(e));
+
+      setShowModal(false);
+      setNewEmail('');
+      setNewPassword('');
+      setNewOwnerName('');
+      setNewMillName('');
+      fetchUsers();
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Failed to create user');
+    } finally {
+      setCreating(false);
+    }
+  };
+
   const getStatus = (u: UserData) => {
     if (!u.is_verified) return 'Pending';
     if (!u.is_active) return 'Inactive';
@@ -85,10 +125,10 @@ export default function Users() {
   };
 
   const filteredUsers = users.filter(u => {
-    // 1. Match Search
-    const matchesSearch = u.email.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = u.email.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          (u.mill_name && u.mill_name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+                          (u.owner_name && u.owner_name.toLowerCase().includes(searchQuery.toLowerCase()));
     
-    // 2. Match Status Filter
     let matchesStatus = true;
     const status = getStatus(u);
     if (statusFilter !== 'All') {
@@ -98,13 +138,27 @@ export default function Users() {
     return matchesSearch && matchesStatus;
   });
 
+  const canManageUsers = currentUser?.role === 'superadmin' || (currentUser?.role === 'admin' && currentUser?.privileges?.can_manage_users);
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Manage system access for {currentUser?.role === 'superadmin' ? 'all users across the platform.' : `users in the ${currentUser?.department} department.`}
-        </p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
+          <p className="mt-1 text-sm text-gray-500">
+            Manage system access for {currentUser?.role === 'superadmin' ? 'all users across the platform.' : `users in the ${currentUser?.department} department.`}
+          </p>
+        </div>
+        
+        {canManageUsers && (
+          <button
+            onClick={() => setShowModal(true)}
+            className="inline-flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md shadow-sm transition-colors"
+          >
+            <Plus className="h-4 w-4 mr-2" />
+            Create Mill Owner
+          </button>
+        )}
       </div>
 
       {error && (
@@ -121,7 +175,7 @@ export default function Users() {
           </div>
           <input
             type="text"
-            placeholder="Search by email..."
+            placeholder="Search by email, mill, or owner..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm"
@@ -151,27 +205,18 @@ export default function Users() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  User
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Role
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Joined
-                </th>
-                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mill Info</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Joined</th>
+                <th scope="col" className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center">
+                  <td colSpan={6} className="px-6 py-12 text-center">
                     <div className="inline-flex items-center text-green-700">
                       <svg className="animate-spin -ml-1 mr-3 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -183,7 +228,7 @@ export default function Users() {
                 </tr>
               ) : filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-6 py-12 text-center text-gray-500">
+                  <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
                     No users found matching your filters.
                   </td>
                 </tr>
@@ -209,6 +254,10 @@ export default function Users() {
                             <div className="text-sm text-gray-500">{u.department || 'Global'}</div>
                           </div>
                         </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <div className="text-sm font-medium text-gray-900">{u.mill_name || '—'}</div>
+                        <div className="text-xs text-gray-500">{u.owner_name || '—'}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center text-sm text-gray-900 capitalize">
@@ -268,6 +317,90 @@ export default function Users() {
           </table>
         </div>
       </div>
+
+      {/* Create User Modal */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+              <h3 className="text-lg font-bold text-gray-900">Create New Mill Owner</h3>
+              <button 
+                onClick={() => setShowModal(false)}
+                className="text-gray-400 hover:text-gray-500 transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            
+            <form onSubmit={handleCreateUser} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
+                <input
+                  type="email"
+                  required
+                  value={newEmail}
+                  onChange={e => setNewEmail(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500"
+                  placeholder="owner@mill.com"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
+                <input
+                  type="password"
+                  required
+                  value={newPassword}
+                  onChange={e => setNewPassword(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500"
+                  placeholder="••••••••"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Name of Owner</label>
+                <input
+                  type="text"
+                  required
+                  value={newOwnerName}
+                  onChange={e => setNewOwnerName(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500"
+                  placeholder="John Doe"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Name of Mill</label>
+                <input
+                  type="text"
+                  required
+                  value={newMillName}
+                  onChange={e => setNewMillName(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500"
+                  placeholder="Green Valley Mills"
+                />
+              </div>
+              
+              <div className="pt-4 flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={creating}
+                  className="px-4 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
+                >
+                  {creating ? 'Creating...' : 'Create Owner'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

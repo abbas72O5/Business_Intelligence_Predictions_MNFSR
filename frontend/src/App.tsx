@@ -14,6 +14,7 @@ import Users from './pages/Users';
 import Admins from './pages/Admins';
 import Zones from './pages/Zones';
 import AuditLogs from './pages/AuditLogs';
+import Profile from './pages/Profile';
 
 function App() {
   return (
@@ -39,6 +40,7 @@ function App() {
             <Route path="admins" element={<Admins />} />
             <Route path="zones" element={<Zones />} />
             <Route path="audit-logs" element={<AuditLogs />} />
+            <Route path="profile" element={<Profile />} />
           </Route>
           </Routes>
         </ErrorBoundary>

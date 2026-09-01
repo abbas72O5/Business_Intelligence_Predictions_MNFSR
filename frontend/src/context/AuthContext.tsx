@@ -7,6 +7,8 @@ interface User {
   email: string;
   role: 'user' | 'admin' | 'superadmin';
   department: string | null;
+  owner_name: string | null;
+  mill_name: string | null;
   is_verified: boolean;
   is_active: boolean;
   privileges?: {
@@ -20,6 +22,7 @@ interface AuthContextType {
   token: string | null;
   login: (token: string) => void;
   logout: () => void;
+  updateUser: (updates: Partial<User>) => void;
   isLoading: boolean;
 }
 
@@ -58,8 +61,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setUser(null);
   };
 
+  const updateUser = (updates: Partial<User>) => {
+    if (user) {
+      setUser({ ...user, ...updates });
+    }
+  };
+
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, isLoading }}>
+    <AuthContext.Provider value={{ user, token, login, logout, updateUser, isLoading }}>
       {children}
     </AuthContext.Provider>
   );
