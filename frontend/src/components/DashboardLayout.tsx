@@ -10,12 +10,18 @@ export default function DashboardLayout() {
 
   const navItems = [
     { name: 'Overview', path: '/dashboard', icon: Home },
-    { name: 'Profile', path: '/dashboard/profile', icon: User },
+  ];
+
+  if (user?.role === 'user') {
+    navItems.push({ name: 'Profile', path: '/dashboard/profile', icon: User });
+  }
+
+  navItems.push(
     { name: 'Data Uploading', path: '/dashboard/upload', icon: UploadCloud },
     { name: 'Data Selection', path: '/dashboard/selection', icon: Database },
     { name: 'Observations', path: '/dashboard/observations', icon: LineChart },
-    { name: 'Predictions', path: '/dashboard/predictions', icon: Brain },
-  ];
+    { name: 'Predictions', path: '/dashboard/predictions', icon: Brain }
+  );
 
   if (user?.role === 'superadmin' || (user?.role === 'admin' && user?.privileges?.can_manage_users !== false)) {
     navItems.push({ name: 'Users', path: '/dashboard/users', icon: Users });

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
-import { Save, AlertCircle, Building2, User, MapPin, Settings, CheckCircle2, History, FileText, ClipboardList, Database, DollarSign } from 'lucide-react';
+import { Save, AlertCircle, Building2, User, MapPin, Settings, CheckCircle2, History, FileText, ClipboardList, Database, DollarSign, Eye, X, Download } from 'lucide-react';
 
 interface MillProfile {
   id?: string;
@@ -84,10 +84,6 @@ export default function Profile() {
   const [rmImported, setRmImported] = useState<RawMaterial>(initialRaw);
   const [rmSynthetic, setRmSynthetic] = useState<RawMaterial>(initialRaw);
   
-  const validateRM = (rm: RawMaterial) => {
-    const expected = rm.opening + rm.procurement - rm.consumption;
-    return Math.abs(rm.closing - expected) < 0.01;
-  };
 
   // Cess Status
   const [cessStatus, setCessStatus] = useState({
@@ -98,6 +94,7 @@ export default function Profile() {
   // ================= State: History =================
   const [reports, setReports] = useState<any[]>([]);
   const [loadingReports, setLoadingReports] = useState(false);
+  const [viewingReport, setViewingReport] = useState<any | null>(null);
 
   // ================= Effects =================
   useEffect(() => {
@@ -154,24 +151,25 @@ export default function Profile() {
     }
   };
 
-  const handleSubmitReport = async () => {
-    // Validate Raw Material
-    if (!validateRM(rmDomestic)) {
-      setReportMsg({ type: 'error', text: 'Domestic Raw Material closing balance does not match (Opening + Procurement - Consumption)' });
-      setActiveTab('rawMaterial');
-      return;
+  const handleExportReports = async () => {
+    try {
+      const response = await axios.get('http://localhost:8000/mills/me/reports/export', {
+        headers: { Authorization: `Bearer ${token}` },
+        responseType: 'blob',
+      });
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', 'My_Monthly_Returns.xlsx');
+      document.body.appendChild(link);
+      link.click();
+      link.parentNode?.removeChild(link);
+    } catch (err) {
+      alert('Failed to export reports');
     }
-    if (!validateRM(rmImported)) {
-      setReportMsg({ type: 'error', text: 'Imported Raw Material closing balance does not match (Opening + Procurement - Consumption)' });
-      setActiveTab('rawMaterial');
-      return;
-    }
-    if (!validateRM(rmSynthetic)) {
-      setReportMsg({ type: 'error', text: 'Synthetic Raw Material closing balance does not match (Opening + Procurement - Consumption)' });
-      setActiveTab('rawMaterial');
-      return;
-    }
+  };
 
+  const handleSubmitReport = async () => {
     const payload = {
       reporting_month: reportingMonth,
       worked_spindles: formA.worked_spindles,
@@ -260,8 +258,6 @@ export default function Profile() {
   );
 
   const renderRM = (title: string, rm: RawMaterial, setter: React.Dispatch<React.SetStateAction<RawMaterial>>) => {
-    const expected = rm.opening + rm.procurement - rm.consumption;
-    const isValid = Math.abs(rm.closing - expected) < 0.01;
     return (
       <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
         <h4 className="text-sm font-medium text-gray-700 mb-3">{title}</h4>
@@ -280,8 +276,7 @@ export default function Profile() {
           </div>
           <div>
             <label className="block text-xs text-gray-500">Closing Balance (kg)</label>
-            <input type="number" value={rm.closing || ''} onChange={e => setter({...rm, closing: parseFloat(e.target.value) || 0})} className={`mt-1 w-full px-3 py-1.5 text-sm border rounded focus:outline-none ${!isValid && rm.closing !== 0 ? 'border-red-500 bg-red-50' : 'border-gray-300'}`} />
-            {!isValid && rm.closing !== 0 && <p className="text-red-500 text-[10px] mt-1">Must equal {expected}</p>}
+            <input type="number" value={rm.closing || ''} onChange={e => setter({...rm, closing: parseFloat(e.target.value) || 0})} className="mt-1 w-full px-3 py-1.5 text-sm border border-gray-300 rounded focus:outline-none" />
           </div>
         </div>
       </div>
@@ -545,11 +540,6 @@ export default function Profile() {
           {/* ================= TAB: RAW MATERIAL ================= */}
           {activeTab === 'rawMaterial' && (
             <div className="p-6 md:p-8 space-y-6 animate-in fade-in zoom-in-95 duration-300">
-              <div className="bg-yellow-50 text-yellow-800 p-4 rounded-lg text-sm border border-yellow-200 flex items-start">
-                <AlertCircle className="h-5 w-5 mr-3 shrink-0" />
-                <p><strong>Validation Rule:</strong> Closing Balance MUST equal (Opening Balance + Procurement - Consumption). The system will block submission if these do not match.</p>
-              </div>
-
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 {renderRM("Domestic Cotton", rmDomestic, setRmDomestic)}
                 {renderRM("Imported Cotton", rmImported, setRmImported)}
@@ -593,7 +583,15 @@ export default function Profile() {
           {/* ================= TAB: HISTORY ================= */}
           {activeTab === 'history' && (
             <div className="p-6 md:p-8 animate-in fade-in zoom-in-95 duration-300">
-              <h2 className="text-xl font-bold text-gray-900 mb-6">Submission History</h2>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-bold text-gray-900">Submission History</h2>
+                {reports.length > 0 && (
+                  <button onClick={handleExportReports} className="inline-flex items-center text-sm font-medium text-white bg-green-600 hover:bg-green-700 px-4 py-2 rounded-md transition-colors shadow-sm">
+                    <Download className="h-4 w-4 mr-2" />
+                    Export as Excel
+                  </button>
+                )}
+              </div>
               
               {loadingReports ? (
                 <div className="text-center py-12 text-gray-500">Loading reports...</div>
@@ -612,6 +610,7 @@ export default function Profile() {
                         <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Total Bales</th>
                         <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Cess Paid</th>
                         <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Status</th>
+                        <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase">Action</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
@@ -629,6 +628,11 @@ export default function Profile() {
                                 Filed
                               </span>
                             </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                              <button onClick={() => setViewingReport(r)} className="text-green-600 hover:text-green-900 inline-flex items-center">
+                                <Eye className="h-4 w-4 mr-1" /> View
+                              </button>
+                            </td>
                           </tr>
                         );
                       })}
@@ -641,6 +645,107 @@ export default function Profile() {
 
         </div>
       </div>
+
+      {/* ================= VIEW REPORT MODAL ================= */}
+      {viewingReport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+            
+            <div className="flex items-center justify-between p-6 border-b border-gray-100">
+              <div>
+                <h3 className="text-xl font-bold text-gray-900">Monthly Return: {viewingReport.reporting_month}</h3>
+                <p className="text-sm text-gray-500">Submitted on {new Date(viewingReport.created_at).toLocaleDateString()}</p>
+              </div>
+              <button onClick={() => setViewingReport(null)} className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors">
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto space-y-8 bg-gray-50">
+              
+              {/* Capacity & Consumed */}
+              <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-sm">
+                <h4 className="text-sm font-bold text-gray-900 border-b pb-2 mb-4">Capacity & Cotton Consumed (Form A)</h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div><span className="text-gray-500 block text-xs">Worked Spindles</span><span className="font-medium">{viewingReport.worked_spindles}</span></div>
+                  <div><span className="text-gray-500 block text-xs">Worked Rotors</span><span className="font-medium">{viewingReport.worked_rotors}</span></div>
+                  <div><span className="text-gray-500 block text-xs">Pressed (kg)</span><span className="font-medium">{viewingReport.pressed_cotton_kg}</span></div>
+                  <div><span className="text-gray-500 block text-xs">Un-pressed (kg)</span><span className="font-medium">{viewingReport.unpressed_cotton_kg}</span></div>
+                </div>
+              </div>
+
+              {/* Cess Calculation */}
+              <div className="bg-green-50 p-5 rounded-lg border border-green-200">
+                <h4 className="text-sm font-bold text-green-900 border-b border-green-200 pb-2 mb-4">Cess Calculation</h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div><span className="text-green-800 block text-xs">Total Bales</span><span className="font-bold">{((viewingReport.pressed_cotton_kg + viewingReport.unpressed_cotton_kg)/170).toFixed(2)}</span></div>
+                  <div><span className="text-green-800 block text-xs">Cess / Bale</span><span className="font-bold">Rs. {viewingReport.cess_per_bale}</span></div>
+                  <div className="col-span-2 text-right"><span className="text-green-800 block text-xs">Remitted Amount</span><span className="font-black text-lg text-green-700">Rs. {viewingReport.remitted_amount.toLocaleString()}</span></div>
+                </div>
+              </div>
+
+              {/* General Info */}
+              <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-sm">
+                <h4 className="text-sm font-bold text-gray-900 border-b pb-2 mb-4">General Information</h4>
+                <div className="grid grid-cols-2 gap-4 text-sm mb-4">
+                  <div><span className="text-gray-500 block text-xs">Working Days</span><span className="font-medium">{viewingReport.working_days}</span></div>
+                  <div><span className="text-gray-500 block text-xs">Shifts</span><span className="font-medium">{viewingReport.shifts}</span></div>
+                </div>
+                
+                {['yarn_cotton', 'yarn_blended', 'yarn_synthetic'].map(yKey => {
+                  if (!viewingReport[yKey] || viewingReport[yKey].length === 0) return null;
+                  return (
+                    <div key={yKey} className="mb-4">
+                      <span className="text-gray-700 block text-xs font-bold mb-2 uppercase">{yKey.replace('_', ' ')}</span>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                        {viewingReport[yKey].map((y: any, idx: number) => (
+                          <div key={idx} className="bg-gray-50 p-2 rounded border border-gray-200 text-xs">
+                            <span className="text-gray-500">Count:</span> <span className="font-medium">{y.count}</span> <br/>
+                            <span className="text-gray-500">Qty:</span> <span className="font-medium">{y.quantity} kg</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Raw Material Position */}
+              <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-sm">
+                <h4 className="text-sm font-bold text-gray-900 border-b pb-2 mb-4">Raw Material Position</h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {['raw_material_domestic', 'raw_material_imported', 'raw_material_synthetic'].map(rmKey => {
+                    const rm = viewingReport[rmKey];
+                    if (!rm) return null;
+                    return (
+                      <div key={rmKey} className="bg-gray-50 p-3 rounded border border-gray-200 text-xs space-y-1">
+                        <span className="text-gray-700 block font-bold mb-2 uppercase border-b pb-1">{rmKey.replace('raw_material_', '')}</span>
+                        <div className="flex justify-between"><span className="text-gray-500">Opening:</span> <span className="font-medium">{rm.opening}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-500">Procurement:</span> <span className="font-medium">{rm.procurement}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-500">Consumption:</span> <span className="font-medium">{rm.consumption}</span></div>
+                        <div className="flex justify-between pt-1 border-t border-gray-200 mt-1"><span className="text-gray-700 font-bold">Closing:</span> <span className="font-bold">{rm.closing}</span></div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Cess Status */}
+              <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-sm">
+                <h4 className="text-sm font-bold text-gray-900 border-b pb-2 mb-4">Cess Status</h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div><span className="text-gray-500 block text-xs">Last Payment</span><span className="font-medium">Rs. {viewingReport.last_payment_amount}</span></div>
+                  <div><span className="text-gray-500 block text-xs">Last Date</span><span className="font-medium">{viewingReport.last_payment_date || '-'}</span></div>
+                  <div><span className="text-gray-500 block text-xs">Amount Due</span><span className="font-medium">Rs. {viewingReport.amount_due}</span></div>
+                  <div><span className="text-gray-500 block text-xs">Outstanding</span><span className="font-medium">Rs. {viewingReport.outstanding_cess}</span></div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

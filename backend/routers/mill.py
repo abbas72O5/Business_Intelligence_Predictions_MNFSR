@@ -5,6 +5,8 @@ from database import db
 from routers.auth import get_current_user
 from models.user import RoleEnum
 from models.mill import MillProfile, MillProfileUpdate, MillMonthlyReport
+from fastapi.responses import StreamingResponse
+from utils.excel_exporter import generate_reports_excel
 
 from datetime import datetime
 
@@ -64,17 +66,6 @@ async def submit_monthly_report(report: MillMonthlyReport, current_user = Depend
     mill = await get_or_create_mill(current_user)
     mill_id = str(mill["_id"])
         
-    # Validate Raw Material Position constraint: closing == opening + procurement - consumption
-    for raw_material_key in ["raw_material_domestic", "raw_material_imported", "raw_material_synthetic"]:
-        rm = getattr(report, raw_material_key, None)
-        if rm:
-            expected_closing = rm.opening + rm.procurement - rm.consumption
-            if abs(rm.closing - expected_closing) > 0.01: # allow minor floating point differences
-                raise HTTPException(
-                    status_code=400, 
-                    detail=f"{raw_material_key} closing balance ({rm.closing}) does not equal opening + procurement - consumption ({expected_closing})"
-                )
-    
     report_dict = report.model_dump()
     report_dict["mill_id"] = mill_id
     report_dict["user_id"] = str(current_user["_id"])
@@ -95,3 +86,82 @@ async def get_my_monthly_reports(current_user = Depends(get_current_user)):
         r["id"] = str(r.pop("_id"))
         
     return reports
+
+@router.get("/user/{target_user_id}/reports")
+async def get_user_monthly_reports(target_user_id: str, current_user = Depends(get_current_user)):
+    if current_user["role"] not in [RoleEnum.admin.value, RoleEnum.superadmin.value]:
+        raise HTTPException(status_code=403, detail="Only admins can view other users' reports")
+
+    target_user = await db.users.find_one({"_id": ObjectId(target_user_id)})
+    if not target_user:
+        raise HTTPException(status_code=404, detail="Target user not found")
+
+    if current_user["role"] == RoleEnum.admin.value:
+        if target_user.get("department") != current_user.get("department"):
+            raise HTTPException(status_code=403, detail="Cannot view reports from a different zone")
+
+    mill_id = target_user.get("mill_id")
+    if not mill_id:
+        return []
+
+    cursor = db.mill_reports.find({"mill_id": mill_id}).sort("created_at", -1)
+    reports = await cursor.to_list(length=100)
+
+    for r in reports:
+        r["id"] = str(r.pop("_id"))
+
+    return reports
+
+@router.get("/me/reports/export")
+async def export_my_reports(current_user = Depends(get_current_user)):
+    mill = await get_or_create_mill(current_user)
+    mill_id = str(mill["_id"])
+        
+    cursor = db.mill_reports.find({"mill_id": mill_id}).sort("created_at", -1)
+    reports = await cursor.to_list(length=100)
+    
+    excel_file = generate_reports_excel(reports, mill, current_user)
+    
+    headers = {
+        'Content-Disposition': f'attachment; filename="Monthly_Returns_{current_user["email"]}.xlsx"'
+    }
+    return StreamingResponse(
+        iter([excel_file.getvalue()]), 
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
+        headers=headers
+    )
+
+@router.get("/user/{target_user_id}/reports/export")
+async def export_user_reports(target_user_id: str, current_user = Depends(get_current_user)):
+    if current_user["role"] not in [RoleEnum.admin.value, RoleEnum.superadmin.value]:
+        raise HTTPException(status_code=403, detail="Only admins can export other users' reports")
+
+    target_user = await db.users.find_one({"_id": ObjectId(target_user_id)})
+    if not target_user:
+        raise HTTPException(status_code=404, detail="Target user not found")
+
+    if current_user["role"] == RoleEnum.admin.value:
+        if target_user.get("department") != current_user.get("department"):
+            raise HTTPException(status_code=403, detail="Cannot export reports from a different zone")
+
+    mill_id = target_user.get("mill_id")
+    if not mill_id:
+        raise HTTPException(status_code=404, detail="No mill profile associated with this user")
+        
+    mill = await db.mills.find_one({"_id": ObjectId(mill_id)})
+    if not mill:
+        raise HTTPException(status_code=404, detail="Mill profile not found")
+
+    cursor = db.mill_reports.find({"mill_id": mill_id}).sort("created_at", -1)
+    reports = await cursor.to_list(length=100)
+    
+    excel_file = generate_reports_excel(reports, mill, target_user)
+    
+    headers = {
+        'Content-Disposition': f'attachment; filename="Monthly_Returns_{target_user["email"]}.xlsx"'
+    }
+    return StreamingResponse(
+        iter([excel_file.getvalue()]), 
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
+        headers=headers
+    )
