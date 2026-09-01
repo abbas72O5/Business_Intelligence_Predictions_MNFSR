@@ -28,14 +28,14 @@ export default function Admins() {
   const [showModal, setShowModal] = useState(false);
   const [newEmail, setNewEmail] = useState('');
   const [newPassword, setNewPassword] = useState('');
-  const [newDepartment, setNewDepartment] = useState('');
+  const [newZone, setNewZone] = useState('');
   const [newPrivileges, setNewPrivileges] = useState<Privileges>({
     can_manage_users: true,
     can_view_activities: true
   });
   const [showPrivilegesModal, setShowPrivilegesModal] = useState(false);
   const [selectedAdmin, setSelectedAdmin] = useState<AdminData | null>(null);
-  const [departmentsList, setDepartmentsList] = useState<{name: string, is_active: boolean}[]>([]);
+  const [departmentsList, setZonesList] = useState<{name: string, is_active: boolean}[]>([]);
 
   const fetchAdmins = async () => {
     try {
@@ -57,21 +57,21 @@ export default function Admins() {
       fetchAdmins();
       
       // Fetch departments for the create admin dropdown
-      const fetchDepartments = async () => {
+      const fetchZones = async () => {
         try {
           const response = await axios.get('http://localhost:8000/departments', {
             headers: { Authorization: `Bearer ${token}` }
           });
           const activeDepts = response.data.filter((d: any) => d.is_active);
-          setDepartmentsList(activeDepts);
+          setZonesList(activeDepts);
           if (activeDepts.length > 0) {
-            setNewDepartment(activeDepts[0].name);
+            setNewZone(activeDepts[0].name);
           }
         } catch (err) {
           console.error('Failed to fetch departments', err);
         }
       };
-      fetchDepartments();
+      fetchZones();
     }
   }, [token, currentUser]);
 
@@ -147,7 +147,7 @@ export default function Admins() {
       await axios.post('http://localhost:8000/auth/admins', {
         email: newEmail,
         password: newPassword,
-        department: newDepartment,
+        department: newZone,
         privileges: newPrivileges
       }, {
         headers: { Authorization: `Bearer ${token}` }
@@ -156,14 +156,14 @@ export default function Admins() {
       setShowModal(false);
       setNewEmail('');
       setNewPassword('');
-      setNewDepartment('');
+      setNewZone('');
       setNewPrivileges({ can_manage_users: true, can_view_activities: true });
       fetchAdmins();
       
       // Log activity
       axios.post('http://localhost:8000/activities', {
         action: 'Create Admin',
-        details: { user: newEmail, department: newDepartment }
+        details: { user: newEmail, department: newZone }
       }, { headers: { Authorization: `Bearer ${token}` } }).catch(e => console.error(e));
     } catch (err: any) {
       alert(err.response?.data?.detail || 'Failed to create admin');
@@ -186,7 +186,7 @@ export default function Admins() {
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Admin Management</h1>
           <p className="mt-1 text-sm text-gray-500">
-            View and manage department administrators and their granular privileges.
+            View and manage zone administrators and their granular privileges.
           </p>
         </div>
         <button
@@ -243,7 +243,7 @@ export default function Admins() {
               ) : admins.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="px-6 py-12 text-center text-gray-500">
-                    No department admins found.
+                    No zone admins found.
                   </td>
                 </tr>
               ) : (
@@ -333,7 +333,7 @@ export default function Admins() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-transparent backdrop-blur-sm">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between p-5 border-b border-gray-200">
-              <h3 className="text-lg font-medium text-gray-900">Create Department Admin</h3>
+              <h3 className="text-lg font-medium text-gray-900">Create Zone Admin</h3>
               <button 
                 onClick={() => setShowModal(false)}
                 className="text-gray-400 hover:text-gray-500 transition-colors"
@@ -368,11 +368,11 @@ export default function Admins() {
               </div>
               
               <div>
-                <label className="block text-sm font-medium text-gray-700">Department</label>
+                <label className="block text-sm font-medium text-gray-700">Zone</label>
                 <select
                   required
-                  value={newDepartment}
-                  onChange={(e) => setNewDepartment(e.target.value)}
+                  value={newZone}
+                  onChange={(e) => setNewZone(e.target.value)}
                   className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-green-700 focus:border-green-700 sm:text-sm rounded-md border bg-white"
                 >
                   {departmentsList.map(dept => (

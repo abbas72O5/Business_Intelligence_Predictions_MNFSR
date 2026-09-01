@@ -3,33 +3,33 @@ import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
 import { Building2, Plus, CheckCircle, XCircle, ShieldAlert, X } from 'lucide-react';
 
-interface DepartmentData {
+interface ZoneData {
   id: string;
   name: string;
   is_active: boolean;
   created_at: string;
 }
 
-export default function Departments() {
+export default function Zones() {
   const { token, user: currentUser } = useAuth();
-  const [departments, setDepartments] = useState<DepartmentData[]>([]);
+  const [zonesList, setZonesList] = useState<ZoneData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   // Modal State
   const [showModal, setShowModal] = useState(false);
-  const [newDepartmentName, setNewDepartmentName] = useState('');
+  const [newZoneName, setNewZoneName] = useState('');
 
-  const fetchDepartments = async () => {
+  const fetchZones = async () => {
     try {
       setLoading(true);
       const response = await axios.get('http://localhost:8000/departments', {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setDepartments(response.data);
+      setZonesList(response.data);
       setError(null);
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Failed to fetch departments');
+      setError(err.response?.data?.detail || 'Failed to fetch Zones');
     } finally {
       setLoading(false);
     }
@@ -37,52 +37,52 @@ export default function Departments() {
 
   useEffect(() => {
     if (token && currentUser?.role === 'superadmin') {
-      fetchDepartments();
+      fetchZones();
     }
   }, [token, currentUser]);
 
-  const toggleDepartmentStatus = async (departmentId: string, currentIsActive: boolean, departmentName: string) => {
-    if (!window.confirm(`Are you sure you want to ${currentIsActive ? 'deactivate' : 'activate'} the ${departmentName} department? This will automatically ${currentIsActive ? 'deactivate' : 'activate'} all users and admins within this department.`)) {
+  const toggleZoneStatus = async (ZoneId: string, currentIsActive: boolean, ZoneName: string) => {
+    if (!window.confirm(`Are you sure you want to ${currentIsActive ? 'deactivate' : 'activate'} the ${ZoneName} Zone? This will automatically ${currentIsActive ? 'deactivate' : 'activate'} all users and admins within this Zone.`)) {
       return;
     }
 
     try {
-      await axios.put(`http://localhost:8000/departments/${departmentId}/status`, 
+      await axios.put(`http://localhost:8000/departments/${ZoneId}/status`,
         { is_active: !currentIsActive },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      fetchDepartments();
-      
+      fetchZones();
+
       // Log activity
       axios.post('http://localhost:8000/activities', {
-        action: currentIsActive ? 'Deactivate Department' : 'Activate Department',
-        details: { department: departmentName }
+        action: currentIsActive ? 'Deactivate Zone' : 'Activate Zone',
+        details: { Zone: ZoneName }
       }, { headers: { Authorization: `Bearer ${token}` } }).catch(e => console.error(e));
     } catch (err: any) {
-      alert(err.response?.data?.detail || 'Failed to update department status');
+      alert(err.response?.data?.detail || 'Failed to update Zone status');
     }
   };
 
-  const handleCreateDepartment = async (e: React.FormEvent) => {
+  const handleCreateZone = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       await axios.post('http://localhost:8000/departments', {
-        name: newDepartmentName
+        name: newZoneName
       }, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      
+
       setShowModal(false);
-      setNewDepartmentName('');
-      fetchDepartments();
-      
+      setNewZoneName('');
+      fetchZones();
+
       // Log activity
       axios.post('http://localhost:8000/activities', {
-        action: 'Create Department',
-        details: { department: newDepartmentName }
+        action: 'Create Zone',
+        details: { Zone: newZoneName }
       }, { headers: { Authorization: `Bearer ${token}` } }).catch(e => console.error(e));
     } catch (err: any) {
-      alert(err.response?.data?.detail || 'Failed to create department');
+      alert(err.response?.data?.detail || 'Failed to create Zone');
     }
   };
 
@@ -100,9 +100,9 @@ export default function Departments() {
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Department Management</h1>
+          <h1 className="text-2xl font-bold text-gray-900">Zone Management</h1>
           <p className="mt-1 text-sm text-gray-500">
-            View, create, and manage departments across the system.
+            View, create, and manage Zones across the system.
           </p>
         </div>
         <button
@@ -110,7 +110,7 @@ export default function Departments() {
           className="inline-flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md shadow-sm transition-colors"
         >
           <Plus className="h-4 w-4 mr-2" />
-          Create Department
+          Create Zone
         </button>
       </div>
 
@@ -120,14 +120,14 @@ export default function Departments() {
         </div>
       )}
 
-      {/* Departments Table */}
+      {/* Zones Table */}
       <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Department Name
+                  Zone Name
                 </th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Status
@@ -149,18 +149,18 @@ export default function Departments() {
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
-                      Loading departments...
+                      Loading Zones...
                     </div>
                   </td>
                 </tr>
-              ) : departments.length === 0 ? (
+              ) : zonesList.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="px-6 py-12 text-center text-gray-500">
-                    No departments found.
+                    No Zones found.
                   </td>
                 </tr>
               ) : (
-                departments.map((dept) => (
+                zonesList.map((dept) => (
                   <tr key={dept.id} className="hover:bg-gray-50 transition-colors">
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
@@ -173,11 +173,10 @@ export default function Departments() {
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
-                        dept.is_active 
-                          ? 'bg-green-50 text-green-700 border-green-200' 
-                          : 'bg-red-50 text-red-700 border-red-200'
-                      }`}>
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${dept.is_active
+                        ? 'bg-green-50 text-green-700 border-green-200'
+                        : 'bg-red-50 text-red-700 border-red-200'
+                        }`}>
                         {dept.is_active ? <CheckCircle className="h-3 w-3 mr-1" /> : <XCircle className="h-3 w-3 mr-1" />}
                         {dept.is_active ? 'Active' : 'Inactive'}
                       </span>
@@ -188,14 +187,14 @@ export default function Departments() {
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       {dept.is_active ? (
                         <button
-                          onClick={() => toggleDepartmentStatus(dept.id, dept.is_active, dept.name)}
+                          onClick={() => toggleZoneStatus(dept.id, dept.is_active, dept.name)}
                           className="inline-flex items-center text-red-600 hover:text-red-900 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-md transition-colors"
                         >
                           Deactivate
                         </button>
                       ) : (
                         <button
-                          onClick={() => toggleDepartmentStatus(dept.id, dept.is_active, dept.name)}
+                          onClick={() => toggleZoneStatus(dept.id, dept.is_active, dept.name)}
                           className="inline-flex items-center text-green-600 hover:text-green-900 bg-green-50 hover:bg-green-100 px-3 py-1.5 rounded-md transition-colors"
                         >
                           Activate
@@ -210,32 +209,32 @@ export default function Departments() {
         </div>
       </div>
 
-      {/* Create Department Modal */}
+      {/* Create Zone Modal */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-transparent backdrop-blur-sm">
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full animate-in zoom-in-95 duration-200 border border-gray-100">
             <div className="flex items-center justify-between p-5 border-b border-gray-200">
-              <h3 className="text-lg font-medium text-gray-900">Create New Department</h3>
-              <button 
+              <h3 className="text-lg font-medium text-gray-900">Create New Zone</h3>
+              <button
                 onClick={() => setShowModal(false)}
                 className="text-gray-400 hover:text-gray-500 transition-colors"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
-            
-            <form onSubmit={handleCreateDepartment} className="p-5 space-y-4">
+
+            <form onSubmit={handleCreateZone} className="p-5 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700">Department Name</label>
+                <label className="block text-sm font-medium text-gray-700">Zone Name</label>
                 <input
                   type="text"
                   required
-                  value={newDepartmentName}
-                  onChange={(e) => setNewDepartmentName(e.target.value)}
+                  value={newZoneName}
+                  onChange={(e) => setNewZoneName(e.target.value)}
                   className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                  placeholder="e.g. Finance, Agriculture, HR"
+                  placeholder="e.g. Multan, Lahore"
                 />
-                <p className="mt-1 text-xs text-gray-500">This department will be available for users to select during registration.</p>
+                <p className="mt-1 text-xs text-gray-500"></p>
               </div>
 
               <div className="pt-5 flex justify-end gap-3">
@@ -248,7 +247,7 @@ export default function Departments() {
                 </button>
                 <button
                   type="submit"
-                  disabled={!newDepartmentName.trim()}
+                  disabled={!newZoneName.trim()}
                   className="bg-green-600 border border-transparent rounded-md shadow-sm py-2 px-4 text-sm font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Create

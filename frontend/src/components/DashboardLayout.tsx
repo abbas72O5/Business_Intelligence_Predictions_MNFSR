@@ -26,7 +26,7 @@ export default function DashboardLayout() {
 
   if (user?.role === 'superadmin') {
     navItems.push({ name: 'Admins', path: '/dashboard/admins', icon: ShieldCheck });
-    navItems.push({ name: 'Departments', path: '/dashboard/departments', icon: Building2 });
+    navItems.push({ name: 'Zones', path: '/dashboard/zones', icon: Building2 });
   }
 
   return (

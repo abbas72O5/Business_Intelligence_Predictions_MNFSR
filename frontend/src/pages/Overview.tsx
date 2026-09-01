@@ -115,7 +115,7 @@ export default function Overview() {
                 <li key={pu.id} className="px-6 py-5 flex flex-col sm:flex-row items-start sm:items-center justify-between hover:bg-gray-50 transition-colors">
                   <div className="mb-4 sm:mb-0">
                     <p className="text-sm font-bold text-gray-900">{pu.email}</p>
-                    <p className="text-sm text-gray-500 mt-0.5">Department: {pu.department}</p>
+                    <p className="text-sm text-gray-500 mt-0.5">Zone: {pu.department}</p>
                     <p className="text-xs text-gray-400 mt-1">Requested: {new Date(pu.created_at).toLocaleDateString()}</p>
                   </div>
                   <button

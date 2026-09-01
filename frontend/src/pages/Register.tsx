@@ -6,26 +6,26 @@ import { ShieldCheck } from 'lucide-react';
 export default function Register() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [department, setDepartment] = useState('');
-  const [departmentsList, setDepartmentsList] = useState<{name: string, is_active: boolean}[]>([]);
+  const [department, setZone] = useState('');
+  const [departmentsList, setZonesList] = useState<{name: string, is_active: boolean}[]>([]);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
-    const fetchDepartments = async () => {
+    const fetchZones = async () => {
       try {
         const response = await axios.get('http://localhost:8000/departments');
         const activeDepts = response.data.filter((d: any) => d.is_active);
-        setDepartmentsList(activeDepts);
+        setZonesList(activeDepts);
         if (activeDepts.length > 0) {
-          setDepartment(activeDepts[0].name);
+          setZone(activeDepts[0].name);
         }
       } catch (err) {
         console.error('Failed to fetch departments', err);
       }
     };
-    fetchDepartments();
+    fetchZones();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -102,12 +102,12 @@ export default function Register() {
 
             <div>
               <label htmlFor="department" className="block text-sm font-medium text-gray-700">
-                Department
+                Zone
               </label>
               <select
                 id="department"
                 value={department}
-                onChange={(e) => setDepartment(e.target.value)}
+                onChange={(e) => setZone(e.target.value)}
                 className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-green-700 focus:border-green-700 sm:text-sm rounded-md border bg-white"
                 required
               >
