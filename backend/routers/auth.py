@@ -5,7 +5,7 @@ from datetime import datetime
 from bson import ObjectId
 
 from database import db
-from models.user import UserCreate, UserLogin, UserResponse, RoleEnum, AdminCreate
+from models.user import UserCreate, UserLogin, UserResponse, RoleEnum, AdminCreate, PasswordChange
 from core.security import get_password_hash, verify_password, create_access_token, SECRET_KEY, ALGORITHM
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -36,28 +36,14 @@ def user_to_response(user) -> UserResponse:
         role=user["role"],
         department=user.get("department"),
         mill_id=user.get("mill_id"),
+        mill_name=user.get("mill_name"),
+        owner_name=user.get("owner_name"),
         is_verified=user.get("is_verified", False),
         is_active=user.get("is_active", True),
         privileges=user.get("privileges", None),
         created_at=user["created_at"]
     )
 
-@router.post("/register", response_model=UserResponse)
-async def register(user_in: UserCreate):
-    existing_user = await db.users.find_one({"email": user_in.email})
-    if existing_user:
-        raise HTTPException(status_code=400, detail="Email already registered")
-    
-    user_dict = user_in.model_dump()
-    user_dict["hashed_password"] = get_password_hash(user_dict.pop("password"))
-    user_dict["role"] = RoleEnum.user.value
-    user_dict["is_verified"] = False
-    user_dict["is_active"] = True
-    user_dict["created_at"] = datetime.utcnow()
-    
-    result = await db.users.insert_one(user_dict)
-    new_user = await db.users.find_one({"_id": result.inserted_id})
-    return user_to_response(new_user)
 
 @router.post("/login")
 async def login(user_in: UserLogin):
@@ -91,6 +77,19 @@ async def get_pending_users(current_user = Depends(get_current_user)):
     users = await cursor.to_list(length=100)
     return [user_to_response(u) for u in users]
 
+@router.put("/me/password")
+async def change_password(payload: PasswordChange, current_user = Depends(get_current_user)):
+    user = await db.users.find_one({"_id": ObjectId(current_user["_id"])})
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+        
+    if not verify_password(payload.old_password, user["hashed_password"]):
+        raise HTTPException(status_code=400, detail="Incorrect old password")
+        
+    new_hashed = get_password_hash(payload.new_password)
+    await db.users.update_one({"_id": ObjectId(current_user["_id"])}, {"$set": {"hashed_password": new_hashed}})
+    return {"message": "Password updated successfully"}
+
 @router.post("/verify/{user_id}")
 async def verify_user(user_id: str, current_user = Depends(get_current_user)):
     if current_user["role"] not in [RoleEnum.admin.value, RoleEnum.superadmin.value]:
@@ -121,6 +120,18 @@ async def get_all_users(current_user = Depends(get_current_user)):
         
     cursor = db.users.find(query).sort("created_at", -1)
     users = await cursor.to_list(length=1000)
+    
+    for user in users:
+        mill_id = user.get("mill_id")
+        if mill_id:
+            try:
+                mill = await db.mills.find_one({"_id": ObjectId(mill_id)})
+                if mill:
+                    user["mill_name"] = mill.get("name")
+                    user["owner_name"] = mill.get("owner_name")
+            except:
+                pass
+                
     return [user_to_response(u) for u in users]
 
 @router.put("/users/{user_id}/status")

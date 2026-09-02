@@ -19,6 +19,10 @@ class UserLogin(BaseModel):
     email: EmailStr
     password: str
 
+class PasswordChange(BaseModel):
+    old_password: str
+    new_password: str
+
 class Privileges(BaseModel):
     can_manage_users: bool = True
     can_view_activities: bool = True
@@ -35,6 +39,8 @@ class UserResponse(BaseModel):
     role: RoleEnum
     department: Optional[str] = None
     mill_id: Optional[str] = None
+    mill_name: Optional[str] = None
+    owner_name: Optional[str] = None
     is_verified: bool
     is_active: bool = True
     privileges: Optional[Privileges] = None

@@ -133,8 +133,9 @@ export default function Overview() {
       )}
 
       {/* Recent Visuals Section */}
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-        <div className="px-6 py-5 border-b border-gray-200 bg-gray-50/50 flex justify-between items-center">
+      {user?.role !== 'user' && (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+          <div className="px-6 py-5 border-b border-gray-200 bg-gray-50/50 flex justify-between items-center">
           <div className="flex items-center">
             <LayoutDashboard className="h-6 w-6 text-green-700 mr-2" />
             <h3 className="text-lg leading-6 font-bold text-gray-900">
@@ -200,6 +201,7 @@ export default function Overview() {
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }

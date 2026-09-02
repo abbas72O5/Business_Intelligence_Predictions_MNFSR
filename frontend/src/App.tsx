@@ -2,7 +2,6 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import ErrorBoundary from './components/ErrorBoundary';
 import { AuthProvider } from './context/AuthContext';
 import Login from './pages/Login';
-import Register from './pages/Register';
 import ProtectedRoute from './components/ProtectedRoute';
 import DashboardLayout from './components/DashboardLayout';
 import Overview from './pages/Overview';
@@ -15,6 +14,7 @@ import Admins from './pages/Admins';
 import Zones from './pages/Zones';
 import AuditLogs from './pages/AuditLogs';
 import Profile from './pages/Profile';
+import MonthlyReports from './pages/MonthlyReports';
 
 function App() {
   return (
@@ -24,7 +24,6 @@ function App() {
           <Routes>
           <Route path="/" element={<Navigate to="/login" replace />} />
           <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
 
           <Route path="/dashboard" element={
             <ProtectedRoute>
@@ -41,6 +40,7 @@ function App() {
             <Route path="zones" element={<Zones />} />
             <Route path="audit-logs" element={<AuditLogs />} />
             <Route path="profile" element={<Profile />} />
+            <Route path="monthly-reports" element={<MonthlyReports />} />
           </Route>
           </Routes>
         </ErrorBoundary>

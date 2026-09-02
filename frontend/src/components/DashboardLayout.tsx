@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Outlet, Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { LogOut, Home, UploadCloud, Database, LineChart, Brain, Menu, Users, ShieldCheck, Building2, Clock, User } from 'lucide-react';
+import { LogOut, Home, UploadCloud, Database, LineChart, Brain, Menu, Users, ShieldCheck, Building2, Clock, User, FileText } from 'lucide-react';
 
 export default function DashboardLayout() {
   const { user, logout } = useAuth();
@@ -10,18 +10,24 @@ export default function DashboardLayout() {
 
   const navItems = [
     { name: 'Overview', path: '/dashboard', icon: Home },
+    { name: 'Profile', path: '/dashboard/profile', icon: User },
   ];
 
   if (user?.role === 'user') {
-    navItems.push({ name: 'Profile', path: '/dashboard/profile', icon: User });
+    navItems.push(
+      { name: 'Monthly Reports', path: '/dashboard/monthly-reports', icon: FileText }
+    );
   }
 
-  navItems.push(
-    { name: 'Data Uploading', path: '/dashboard/upload', icon: UploadCloud },
-    { name: 'Data Selection', path: '/dashboard/selection', icon: Database },
-    { name: 'Observations', path: '/dashboard/observations', icon: LineChart },
-    { name: 'Predictions', path: '/dashboard/predictions', icon: Brain }
-  );
+  navItems.push({ name: 'Data Uploading', path: '/dashboard/upload', icon: UploadCloud });
+
+  if (user?.role !== 'user') {
+    navItems.push(
+      { name: 'Data Selection', path: '/dashboard/selection', icon: Database },
+      { name: 'Observations', path: '/dashboard/observations', icon: LineChart },
+      { name: 'Predictions', path: '/dashboard/predictions', icon: Brain }
+    );
+  }
 
   if (user?.role === 'superadmin' || (user?.role === 'admin' && user?.privileges?.can_manage_users !== false)) {
     navItems.push({ name: 'Users', path: '/dashboard/users', icon: Users });

@@ -111,14 +111,7 @@ export default function Login() {
             </div>
           </form>
 
-          <div className="mt-8 text-center">
-            <p className="text-sm text-gray-600">
-              New to the system?{' '}
-              <Link to="/register" className="font-medium text-green-700 hover:text-green-600">
-                Register new account
-              </Link>
-            </p>
-          </div>
+
         </div>
       </div>
     </div>
