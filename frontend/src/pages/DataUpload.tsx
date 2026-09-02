@@ -17,10 +17,14 @@ export interface TableMetadata {
   department: string;
   visibility: string;
   uploaded_at: string;
+  uploaded_by?: string;
+  uploader_email?: string;
+  uploader_name?: string;
+  uploader_department?: string;
 }
 
 export default function DataUpload() {
-  const { token } = useAuth();
+  const { token, user: currentUser } = useAuth();
   const [files, setFiles] = useState<TableMetadata[]>([]);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
@@ -230,6 +234,13 @@ export default function DataUpload() {
                       <div className="flex-1 min-w-0 pr-6">
                         <p className="text-sm font-medium text-gray-900 truncate">{f.filename}</p>
                         <p className="text-xs text-gray-500">{new Date(f.uploaded_at).toLocaleDateString()}</p>
+                        {f.uploaded_by && f.uploaded_by !== currentUser?.id && (
+                          <div className="mt-1">
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-800">
+                              Imported: {f.uploader_name || f.uploader_email} ({f.uploader_department || 'Global'})
+                            </span>
+                          </div>
+                        )}
                       </div>
                     </button>
                     <button 

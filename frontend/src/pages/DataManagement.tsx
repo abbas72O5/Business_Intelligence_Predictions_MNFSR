@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
-import { Search, Shield, ShieldAlert, CheckCircle, XCircle, Clock, X, Eye, FileText, History, Download } from 'lucide-react';
+import { Search, Shield, ShieldAlert, CheckCircle, XCircle, Clock, X, Eye, FileText, History, Download, Database } from 'lucide-react';
 
 interface UserData {
   id: string;
@@ -33,6 +33,12 @@ export default function DataManagement() {
   const [userReportsModalOpen, setUserReportsModalOpen] = useState(false);
   const [viewingReportDetails, setViewingReportDetails] = useState<any | null>(null);
   const [loadingReports, setLoadingReports] = useState(false);
+
+  // User Datasets Modal State
+  const [userDatasets, setUserDatasets] = useState<any[]>([]);
+  const [userDatasetsModalOpen, setUserDatasetsModalOpen] = useState(false);
+  const [loadingDatasets, setLoadingDatasets] = useState(false);
+  const [importingDataset, setImportingDataset] = useState<string | null>(null);
 
   const fetchUsers = async () => {
     try {
@@ -70,6 +76,36 @@ export default function DataManagement() {
       alert(err.response?.data?.detail || 'Failed to fetch user reports');
     } finally {
       setLoadingReports(false);
+    }
+  };
+
+  const handleViewUserDatasets = async (user: UserData) => {
+    setTargetUser(user);
+    setUserDatasetsModalOpen(true);
+    try {
+      setLoadingDatasets(true);
+      const response = await axios.get(`http://localhost:8000/files/user/${user.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setUserDatasets(response.data);
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Failed to fetch user datasets');
+    } finally {
+      setLoadingDatasets(false);
+    }
+  };
+
+  const handleImportDataset = async (tableId: string) => {
+    try {
+      setImportingDataset(tableId);
+      await axios.post(`http://localhost:8000/files/${tableId}/import`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      alert('Dataset imported successfully! You can view it in the Data Uploading module.');
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Failed to import dataset');
+    } finally {
+      setImportingDataset(null);
     }
   };
 
@@ -224,8 +260,8 @@ export default function DataManagement() {
                       <td className="px-6 py-4 whitespace-nowrap">
                         {u.role === 'user' ? (
                           <>
-                            <div className="text-sm font-medium text-gray-900">{u.mill_name || 'ΓÇö'}</div>
-                            <div className="text-xs text-gray-500">{u.owner_name || 'ΓÇö'}</div>
+                            <div className="text-sm font-medium text-gray-900">{u.mill_name || '--'}</div>
+                            <div className="text-xs text-gray-500">{u.owner_name || '--'}</div>
                           </>
                         ) : (
                           <div className="text-sm text-gray-400 italic">Not Applicable</div>
@@ -263,14 +299,24 @@ export default function DataManagement() {
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex justify-end items-center space-x-2">
                           {u.role === 'user' && (
-                            <button
-                              onClick={() => handleViewUserReports(u)}
-                              className="inline-flex items-center text-blue-600 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-md transition-colors"
-                              title="View Monthly Reports"
-                            >
-                              <FileText className="h-4 w-4 mr-1.5" />
-                              Reports
-                            </button>
+                            <>
+                              <button
+                                onClick={() => handleViewUserReports(u)}
+                                className="inline-flex items-center text-blue-600 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-md transition-colors"
+                                title="View Monthly Reports"
+                              >
+                                <FileText className="h-4 w-4 mr-1.5" />
+                                Reports
+                              </button>
+                              <button
+                                onClick={() => handleViewUserDatasets(u)}
+                                className="inline-flex items-center text-purple-600 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-md transition-colors"
+                                title="View Uploaded Data"
+                              >
+                                <Database className="h-4 w-4 mr-1.5" />
+                                Data Uploaded
+                              </button>
+                            </>
                           )}
 
                         </div>
@@ -343,6 +389,67 @@ export default function DataManagement() {
                           </tr>
                         );
                       })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* User Datasets List Modal */}
+      {userDatasetsModalOpen && targetUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+              <h3 className="text-lg font-bold text-gray-900">Datasets uploaded by {targetUser.email}</h3>
+              <div className="flex items-center space-x-3">
+                <button 
+                  onClick={() => setUserDatasetsModalOpen(false)}
+                  className="text-gray-400 hover:text-gray-500 transition-colors"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+            
+            <div className="p-6 overflow-y-auto max-h-[70vh]">
+              {loadingDatasets ? (
+                <div className="text-center py-8 text-gray-500">Loading datasets...</div>
+              ) : userDatasets.length === 0 ? (
+                <div className="text-center py-12 text-gray-500 bg-gray-50 rounded-xl border border-dashed border-gray-300">
+                  <Database className="h-8 w-8 mx-auto text-gray-400 mb-3" />
+                  <p>No datasets have been uploaded by this user yet.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200 border border-gray-200 rounded-lg overflow-hidden">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Dataset Name</th>
+                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Upload Date</th>
+                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Records</th>
+                        <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {userDatasets.map((d, idx) => (
+                        <tr key={idx} className="hover:bg-gray-50">
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{d.filename}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(d.uploaded_at).toLocaleDateString()}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{d.row_count?.toLocaleString() || 'N/A'}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <button 
+                              onClick={() => handleImportDataset(d.table_id)} 
+                              disabled={importingDataset === d.table_id}
+                              className="text-green-600 hover:text-green-900 inline-flex items-center disabled:opacity-50 px-3 py-1.5 border border-green-200 bg-green-50 rounded-md"
+                            >
+                              <Download className="h-4 w-4 mr-1" /> {importingDataset === d.table_id ? 'Importing...' : 'Import'}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>

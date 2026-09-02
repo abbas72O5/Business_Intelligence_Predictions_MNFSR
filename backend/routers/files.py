@@ -138,10 +138,59 @@ async def upload_file(file: UploadFile = File(...), current_user = Depends(get_c
 
 @router.get("/", response_model=list[TableMetadata])
 async def get_files(current_user = Depends(get_current_user)):
-    query = {"uploaded_by": str(current_user["_id"])}
+    from bson import ObjectId
+    user_id = str(current_user["_id"])
+    query = {
+        "$or": [
+            {"uploaded_by": user_id},
+            {"imported_by": user_id}
+        ]
+    }
     cursor = db.table_metadata.find(query).sort("uploaded_at", -1)
     files = await cursor.to_list(length=100)
     
+    result = []
+    for f in files:
+        uploader_email = f.get("uploader_email")
+        uploader_name = f.get("uploader_name")
+        uploader_department = f.get("uploader_department")
+        
+        if not uploader_email and f["uploaded_by"] != user_id:
+            try:
+                uploader = await db.users.find_one({"_id": ObjectId(f["uploaded_by"])})
+                if uploader:
+                    uploader_email = uploader.get("email")
+                    uploader_name = uploader.get("owner_name")
+                    uploader_department = uploader.get("department")
+            except:
+                pass
+                
+        result.append(
+            TableMetadata(
+                id=str(f["_id"]),
+                table_id=f["table_id"],
+                filename=f["filename"],
+                storage_path=f["storage_path"],
+                columns=f["columns"],
+                department=f["department"],
+                visibility=f.get("visibility", "private"),
+                uploaded_at=f["uploaded_at"],
+                uploaded_by=f["uploaded_by"],
+                imported_by=f.get("imported_by", []),
+                uploader_email=uploader_email,
+                uploader_name=uploader_name,
+                uploader_department=uploader_department
+            )
+        )
+    return result
+
+@router.get("/user/{user_id}", response_model=list[TableMetadata])
+async def get_user_files(user_id: str, current_user = Depends(get_current_user)):
+    if current_user["role"] not in ["admin", "superadmin"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    query = {"uploaded_by": user_id}
+    cursor = db.table_metadata.find(query).sort("uploaded_at", -1)
+    files = await cursor.to_list(length=100)
     return [
         TableMetadata(
             id=str(f["_id"]),
@@ -152,9 +201,30 @@ async def get_files(current_user = Depends(get_current_user)):
             department=f["department"],
             visibility=f.get("visibility", "private"),
             uploaded_at=f["uploaded_at"],
-            uploaded_by=f["uploaded_by"]
+            uploaded_by=f["uploaded_by"],
+            imported_by=f.get("imported_by", [])
         ) for f in files
     ]
+
+@router.post("/{table_id}/import")
+async def import_file(table_id: str, current_user = Depends(get_current_user)):
+    if current_user["role"] not in ["admin", "superadmin"]:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    
+    file_doc = await db.table_metadata.find_one({"table_id": table_id})
+    if not file_doc:
+        raise HTTPException(status_code=404, detail="File not found")
+        
+    user_id = str(current_user["_id"])
+    imported_by = file_doc.get("imported_by", [])
+    if user_id not in imported_by:
+        imported_by.append(user_id)
+        await db.table_metadata.update_one(
+            {"table_id": table_id},
+            {"$set": {"imported_by": imported_by}}
+        )
+        
+    return {"status": "success"}
 
 @router.get("/{table_id}/preview")
 async def preview_file(table_id: str, limit: int = 50, current_user = Depends(get_current_user)):

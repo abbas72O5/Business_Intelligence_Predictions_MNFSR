@@ -20,6 +20,10 @@ class TableMetadata(BaseModel):
     visibility: str = "private"
     uploaded_at: datetime
     uploaded_by: str
+    imported_by: List[str] = []
+    uploader_email: Optional[str] = None
+    uploader_name: Optional[str] = None
+    uploader_department: Optional[str] = None
 
 class Relationship(BaseModel):
     relationship_id: str
