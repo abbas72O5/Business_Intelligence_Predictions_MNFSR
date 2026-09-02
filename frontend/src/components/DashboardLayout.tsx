@@ -30,7 +30,10 @@ export default function DashboardLayout() {
   }
 
   if (user?.role === 'superadmin' || (user?.role === 'admin' && user?.privileges?.can_manage_users !== false)) {
-    navItems.push({ name: 'Users', path: '/dashboard/users', icon: Users });
+    navItems.push(
+      { name: 'Users', path: '/dashboard/users', icon: Users },
+      { name: 'Data Management', path: '/dashboard/data-management', icon: Database }
+    );
   }
 
   if (user?.role === 'superadmin' || (user?.role === 'admin' && user?.privileges?.can_view_activities !== false)) {

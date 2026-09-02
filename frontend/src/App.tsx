@@ -10,6 +10,7 @@ import DataSelection from './pages/DataSelection';
 import Observations from './pages/Observations';
 import Predictions from './pages/Predictions';
 import Users from './pages/Users';
+import DataManagement from './pages/DataManagement';
 import Admins from './pages/Admins';
 import Zones from './pages/Zones';
 import AuditLogs from './pages/AuditLogs';
@@ -36,6 +37,7 @@ function App() {
             <Route path="observations" element={<Observations />} />
             <Route path="predictions" element={<Predictions />} />
             <Route path="users" element={<Users />} />
+            <Route path="data-management" element={<DataManagement />} />
             <Route path="admins" element={<Admins />} />
             <Route path="zones" element={<Zones />} />
             <Route path="audit-logs" element={<AuditLogs />} />
