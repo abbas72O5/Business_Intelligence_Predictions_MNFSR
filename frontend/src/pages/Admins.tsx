@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
-import { ShieldCheck, UserPlus, Check, X, ShieldAlert, Settings, CheckCircle, XCircle, Clock, UserCheck, UserX } from 'lucide-react';
+import { ShieldCheck, X, ShieldAlert, Settings, CheckCircle, XCircle, Clock, UserCheck, UserX } from 'lucide-react';
 
 interface Privileges {
   can_manage_users: boolean;
   can_view_activities: boolean;
+  disabled_modules?: string[];
 }
 
 interface AdminData {
@@ -28,6 +29,22 @@ export default function Admins() {
   const [showPrivilegesModal, setShowPrivilegesModal] = useState(false);
   const [selectedAdmin, setSelectedAdmin] = useState<AdminData | null>(null);
 
+  const [showModulePrivilegesModal, setShowModulePrivilegesModal] = useState(false);
+  const [selectedModule, setSelectedModule] = useState<string | null>(null);
+
+  const ALL_MODULES = [
+    'Overview',
+    'Profile',
+    'Monthly Reports',
+    'Data Uploading',
+    'Data Selection',
+    'Observations',
+    'Predictions',
+    'Users',
+    'Data Management',
+    'Audit Logs'
+  ];
+
   const fetchAdmins = async () => {
     try {
       setLoading(true);
@@ -49,7 +66,7 @@ export default function Admins() {
     }
   }, [token, currentUser]);
 
-  const togglePrivilege = async (adminId: string, currentPrivileges: Privileges | null, field: keyof Privileges) => {
+  const togglePrivilege = async (adminId: string, currentPrivileges: Privileges | null, field: 'can_manage_users' | 'can_view_activities') => {
     const defaultPrivileges = { can_manage_users: true, can_view_activities: true };
     const privilegesToUpdate = currentPrivileges ? { ...currentPrivileges } : { ...defaultPrivileges };
     
@@ -81,6 +98,48 @@ export default function Admins() {
       }
     } catch (err: any) {
       alert(err.response?.data?.detail || 'Failed to update privileges');
+    }
+  };
+
+  const toggleModuleStatus = async (adminId: string, currentPrivileges: Privileges | null, moduleName: string) => {
+    const defaultPrivileges: Privileges = { can_manage_users: true, can_view_activities: true, disabled_modules: [] };
+    const privilegesToUpdate = currentPrivileges ? { ...currentPrivileges } : { ...defaultPrivileges };
+    
+    if (!privilegesToUpdate.disabled_modules) {
+      privilegesToUpdate.disabled_modules = [];
+    }
+    
+    if (privilegesToUpdate.disabled_modules.includes(moduleName)) {
+      privilegesToUpdate.disabled_modules = privilegesToUpdate.disabled_modules.filter(m => m !== moduleName);
+    } else {
+      privilegesToUpdate.disabled_modules = [...privilegesToUpdate.disabled_modules, moduleName];
+    }
+
+    try {
+      await axios.put(`http://localhost:8000/auth/admins/${adminId}/privileges`, 
+        { privileges: privilegesToUpdate },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      
+      setAdmins(prev => prev.map(a => 
+        a.id === adminId ? { ...a, privileges: privilegesToUpdate } : a
+      ));
+      
+      if (selectedAdmin?.id === adminId) {
+        setSelectedAdmin(prev => prev ? { ...prev, privileges: privilegesToUpdate } : null);
+      }
+      
+      // Log activity
+      const targetAdmin = admins.find(a => a.id === adminId);
+      if (targetAdmin) {
+        const actionStr = privilegesToUpdate.disabled_modules.includes(moduleName) ? 'Disable Module' : 'Enable Module';
+        axios.post('http://localhost:8000/activities', {
+          action: actionStr,
+          details: { user: targetAdmin.email, module: moduleName }
+        }, { headers: { Authorization: `Bearer ${token}` } }).catch(e => console.error(e));
+      }
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Failed to update module status');
     }
   };
 
@@ -321,7 +380,17 @@ export default function Admins() {
                 </div>
               </div>
 
-              <div className="pt-2 flex justify-end">
+              <div className="pt-2 flex justify-between items-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedModule(ALL_MODULES[0]);
+                    setShowModulePrivilegesModal(true);
+                  }}
+                  className="bg-purple-100 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-purple-700 hover:bg-purple-200 focus:outline-none transition-colors"
+                >
+                  Module Privileges
+                </button>
                 <button
                   type="button"
                   onClick={() => setShowPrivilegesModal(false)}
@@ -329,6 +398,89 @@ export default function Admins() {
                 >
                   Done
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Module Privileges Modal */}
+      {showModulePrivilegesModal && selectedAdmin && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-4xl h-[80vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between p-5 border-b border-gray-200 bg-gray-50">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900">Module Privileges</h3>
+                <p className="text-sm text-gray-500">Configure module access for {selectedAdmin.email}</p>
+              </div>
+              <button 
+                onClick={() => setShowModulePrivilegesModal(false)}
+                className="text-gray-400 hover:text-gray-500 transition-colors"
+              >
+                <X className="h-6 w-6" />
+              </button>
+            </div>
+            
+            <div className="flex flex-1 overflow-hidden">
+              {/* Sidebar */}
+              <div className="w-1/3 border-r border-gray-200 bg-white overflow-y-auto">
+                <ul className="divide-y divide-gray-100">
+                  {ALL_MODULES.map(mod => (
+                    <li key={mod}>
+                      <button
+                        onClick={() => setSelectedModule(mod)}
+                        className={`w-full text-left px-5 py-4 text-sm font-medium transition-colors flex items-center justify-between ${
+                          selectedModule === mod 
+                            ? 'bg-purple-50 text-purple-700 border-l-4 border-purple-500' 
+                            : 'text-gray-700 hover:bg-gray-50 border-l-4 border-transparent'
+                        }`}
+                      >
+                        {mod}
+                        {selectedAdmin.privileges?.disabled_modules?.includes(mod) && (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                            Disabled
+                          </span>
+                        )}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              
+              {/* Main Content */}
+              <div className="w-2/3 bg-gray-50 p-8 overflow-y-auto">
+                {selectedModule ? (
+                  <div className="space-y-6 max-w-2xl mx-auto">
+                    <div className="flex items-center justify-between border-b border-gray-200 pb-5">
+                      <div>
+                        <h4 className="text-xl font-bold text-gray-900">{selectedModule}</h4>
+                        <p className="text-sm text-gray-500 mt-1">Configure detailed functions and access for this module.</p>
+                      </div>
+                      <button
+                        onClick={() => toggleModuleStatus(selectedAdmin.id, selectedAdmin.privileges, selectedModule)}
+                        className={`px-4 py-2 rounded-md text-sm font-medium shadow-sm transition-colors ${
+                          selectedAdmin.privileges?.disabled_modules?.includes(selectedModule) 
+                            ? 'bg-green-600 text-white hover:bg-green-700 border border-transparent'
+                            : 'bg-red-100 text-red-700 hover:bg-red-200 border border-red-200'
+                        }`}
+                      >
+                        {selectedAdmin.privileges?.disabled_modules?.includes(selectedModule) ? 'Enable Module' : 'Disable Module'}
+                      </button>
+                    </div>
+                    
+                    <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200 text-center">
+                      <div className="text-gray-500 flex flex-col items-center justify-center min-h-[200px]">
+                        <Settings className="h-12 w-12 text-gray-300 mb-4" />
+                        <p className="text-base font-medium text-gray-900">Detailed functions coming soon</p>
+                        <p className="text-sm mt-2">More granular controls for the {selectedModule} module will be added here in a future update.</p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-center h-full text-gray-400">
+                    <p>Select a module from the left to view its privileges</p>
+                  </div>
+                )}
               </div>
             </div>
           </div>

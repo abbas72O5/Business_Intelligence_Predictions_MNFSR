@@ -41,9 +41,18 @@ export default function DashboardLayout() {
   }
 
   if (user?.role === 'superadmin') {
-    navItems.push({ name: 'Admins', path: '/dashboard/admins', icon: ShieldCheck });
+    navItems.push({ name: 'Roles & Permissions', path: '/dashboard/admins', icon: ShieldCheck });
     navItems.push({ name: 'Zones', path: '/dashboard/zones', icon: Building2 });
   }
+
+  const visibleNavItems = navItems.filter(item => {
+    if (user?.role === 'admin' && user?.privileges?.disabled_modules) {
+      if (user.privileges.disabled_modules.includes(item.name)) {
+        return false;
+      }
+    }
+    return true;
+  });
 
   return (
     <div className="min-h-screen bg-gray-50 flex font-sans">
@@ -61,7 +70,7 @@ export default function DashboardLayout() {
           <img src="/logo.png" alt="Ministry of National Food Security and Research" className="h-16 w-auto object-contain" />
         </div>
         <nav className="p-4 space-y-2 mt-4 flex-1 overflow-y-auto">
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const Icon = item.icon;
             const isActive = location.pathname === item.path;
             return (

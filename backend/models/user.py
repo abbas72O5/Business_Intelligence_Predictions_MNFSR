@@ -26,6 +26,7 @@ class PasswordChange(BaseModel):
 class Privileges(BaseModel):
     can_manage_users: bool = True
     can_view_activities: bool = True
+    disabled_modules: Optional[list[str]] = None
 
 class AdminCreate(BaseModel):
     email: EmailStr

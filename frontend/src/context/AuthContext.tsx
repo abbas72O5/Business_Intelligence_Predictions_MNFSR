@@ -14,6 +14,7 @@ interface User {
   privileges?: {
     can_manage_users: boolean;
     can_view_activities: boolean;
+    disabled_modules?: string[];
   };
 }
 
