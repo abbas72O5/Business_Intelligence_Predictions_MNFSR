@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
-import { Search, Shield, ShieldAlert, CheckCircle, XCircle, Clock, X, Eye, FileText, History, Download, Database } from 'lucide-react';
+import { Search, Shield, ShieldAlert, CheckCircle, XCircle, Clock, X, Eye, FileText, History, Download, Database, Table, CheckCircle2, AlertCircle } from 'lucide-react';
 
 interface UserData {
   id: string;
@@ -33,12 +33,21 @@ export default function DataManagement() {
   const [userReportsModalOpen, setUserReportsModalOpen] = useState(false);
   const [viewingReportDetails, setViewingReportDetails] = useState<any | null>(null);
   const [loadingReports, setLoadingReports] = useState(false);
+  const [importingReport, setImportingReport] = useState<string | null>(null);
 
   // User Datasets Modal State
   const [userDatasets, setUserDatasets] = useState<any[]>([]);
   const [userDatasetsModalOpen, setUserDatasetsModalOpen] = useState(false);
   const [loadingDatasets, setLoadingDatasets] = useState(false);
   const [importingDataset, setImportingDataset] = useState<string | null>(null);
+
+  // Dataset Preview Modal State
+  const [viewingDatasetPreview, setViewingDatasetPreview] = useState<any[] | null>(null);
+  const [previewDatasetName, setPreviewDatasetName] = useState<string | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+
+  // Status Message State
+  const [importMessage, setImportMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
 
   const fetchUsers = async () => {
     try {
@@ -97,15 +106,52 @@ export default function DataManagement() {
 
   const handleImportDataset = async (tableId: string) => {
     try {
+      setImportMessage(null);
       setImportingDataset(tableId);
       await axios.post(`http://localhost:8000/files/${tableId}/import`, {}, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      alert('Dataset imported successfully! You can view it in the Data Uploading module.');
+      setImportMessage({ type: 'success', text: 'Dataset imported successfully! You can view it in the Data Uploading module.' });
+      setTimeout(() => setImportMessage(null), 5000);
     } catch (err: any) {
-      alert(err.response?.data?.detail || 'Failed to import dataset');
+      setImportMessage({ type: 'error', text: err.response?.data?.detail || 'Failed to import dataset' });
     } finally {
       setImportingDataset(null);
+    }
+  };
+
+  const handleImportAllReports = async () => {
+    if (!targetUser) return;
+    try {
+      setImportMessage(null);
+      setImportingReport(targetUser.id);
+      await axios.post(`http://localhost:8000/mills/user/${targetUser.id}/reports/import`, {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setImportMessage({ type: 'success', text: 'All reports imported successfully! You can view them in the Data Uploading module.' });
+      setTimeout(() => setImportMessage(null), 5000);
+    } catch (err: any) {
+      setImportMessage({ type: 'error', text: err.response?.data?.detail || 'Failed to import reports' });
+    } finally {
+      setImportingReport(null);
+    }
+  };
+
+  const handleViewPreview = async (dataset: any) => {
+    try {
+      setPreviewLoading(true);
+      setPreviewDatasetName(dataset.filename);
+      setViewingDatasetPreview([]);
+      const response = await axios.get(`http://localhost:8000/files/${dataset.table_id}/preview?limit=5`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setViewingDatasetPreview(response.data);
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Failed to fetch dataset preview');
+      setViewingDatasetPreview(null);
+      setPreviewDatasetName(null);
+    } finally {
+      setPreviewLoading(false);
     }
   };
 
@@ -338,19 +384,36 @@ export default function DataManagement() {
               <h3 className="text-lg font-bold text-gray-900">Reports for {targetUser.email}</h3>
               <div className="flex items-center space-x-3">
                 {userReports.length > 0 && (
-                  <button onClick={handleExportUserReports} className="inline-flex items-center text-sm font-medium text-white bg-green-600 hover:bg-green-700 px-3 py-1.5 rounded-md transition-colors shadow-sm">
-                    <Download className="h-4 w-4 mr-1.5" />
-                    Export
-                  </button>
+                  <>
+                    <button 
+                      onClick={handleImportAllReports} 
+                      disabled={importingReport === targetUser.id}
+                      className="inline-flex items-center text-sm font-medium text-green-700 bg-green-100 hover:bg-green-200 px-3 py-1.5 rounded-md transition-colors shadow-sm disabled:opacity-50"
+                    >
+                      <Download className="h-4 w-4 mr-1.5" />
+                      {importingReport === targetUser.id ? 'Importing...' : 'Import to Data Uploading'}
+                    </button>
+                    <button onClick={handleExportUserReports} className="inline-flex items-center text-sm font-medium text-white bg-green-600 hover:bg-green-700 px-3 py-1.5 rounded-md transition-colors shadow-sm">
+                      <Download className="h-4 w-4 mr-1.5" />
+                      Export
+                    </button>
+                  </>
                 )}
                 <button 
-                  onClick={() => setUserReportsModalOpen(false)}
+                  onClick={() => { setUserReportsModalOpen(false); setImportMessage(null); }}
                   className="text-gray-400 hover:text-gray-500 transition-colors"
                 >
                   <X className="h-5 w-5" />
                 </button>
               </div>
             </div>
+            
+            {importMessage && (
+              <div className={`px-6 py-3 border-b text-sm flex items-center ${importMessage.type === 'success' ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
+                {importMessage.type === 'success' ? <CheckCircle2 className="h-4 w-4 mr-2" /> : <AlertCircle className="h-4 w-4 mr-2" />}
+                {importMessage.text}
+              </div>
+            )}
             
             <div className="p-6 overflow-y-auto max-h-[70vh]">
               {loadingReports ? (
@@ -406,7 +469,7 @@ export default function DataManagement() {
               <h3 className="text-lg font-bold text-gray-900">Datasets uploaded by {targetUser.email}</h3>
               <div className="flex items-center space-x-3">
                 <button 
-                  onClick={() => setUserDatasetsModalOpen(false)}
+                  onClick={() => { setUserDatasetsModalOpen(false); setImportMessage(null); }}
                   className="text-gray-400 hover:text-gray-500 transition-colors"
                 >
                   <X className="h-5 w-5" />
@@ -414,6 +477,13 @@ export default function DataManagement() {
               </div>
             </div>
             
+            {importMessage && (
+              <div className={`px-6 py-3 border-b text-sm flex items-center ${importMessage.type === 'success' ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
+                {importMessage.type === 'success' ? <CheckCircle2 className="h-4 w-4 mr-2" /> : <AlertCircle className="h-4 w-4 mr-2" />}
+                {importMessage.text}
+              </div>
+            )}
+
             <div className="p-6 overflow-y-auto max-h-[70vh]">
               {loadingDatasets ? (
                 <div className="text-center py-8 text-gray-500">Loading datasets...</div>
@@ -429,7 +499,7 @@ export default function DataManagement() {
                       <tr>
                         <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Dataset Name</th>
                         <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Upload Date</th>
-                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Records</th>
+                        <th className="px-6 py-3 text-left text-xs font-bold text-gray-500 uppercase">Preview</th>
                         <th className="px-6 py-3 text-right text-xs font-bold text-gray-500 uppercase">Action</th>
                       </tr>
                     </thead>
@@ -438,7 +508,14 @@ export default function DataManagement() {
                         <tr key={idx} className="hover:bg-gray-50">
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{d.filename}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(d.uploaded_at).toLocaleDateString()}</td>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{d.row_count?.toLocaleString() || 'N/A'}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            <button 
+                              onClick={() => handleViewPreview(d)} 
+                              className="text-blue-600 hover:text-blue-900 inline-flex items-center bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-md transition-colors"
+                            >
+                              <Table className="h-4 w-4 mr-1.5" /> Preview
+                            </button>
+                          </td>
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                             <button 
                               onClick={() => handleImportDataset(d.table_id)} 
@@ -558,6 +635,66 @@ export default function DataManagement() {
           </div>
         </div>
       )}
+      {/* Dataset Preview Modal */}
+      {viewingDatasetPreview !== null && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[85vh]">
+            <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+              <h3 className="text-lg font-bold text-gray-900">Dataset Preview: {previewDatasetName}</h3>
+              <button 
+                onClick={() => { setViewingDatasetPreview(null); setPreviewDatasetName(null); }}
+                className="text-gray-400 hover:text-gray-500 transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-auto bg-gray-50 flex-1">
+              {previewLoading ? (
+                <div className="text-center py-12 text-gray-500 flex flex-col items-center">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mb-4"></div>
+                  Loading preview data...
+                </div>
+              ) : viewingDatasetPreview.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">No data available for preview.</div>
+              ) : (
+                <div className="bg-white border border-gray-200 rounded-lg overflow-hidden shadow-sm inline-block min-w-full">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-100">
+                      <tr>
+                        {Object.keys(viewingDatasetPreview[0]).map((key) => (
+                          <th 
+                            key={key} 
+                            className="px-4 py-3 text-left text-xs font-bold text-gray-600 uppercase tracking-wider sticky top-0 bg-gray-100"
+                          >
+                            {key}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {viewingDatasetPreview.map((row, i) => (
+                        <tr key={i} className="hover:bg-gray-50">
+                          {Object.values(row).map((val: any, j) => (
+                            <td 
+                              key={j} 
+                              className="px-4 py-2 whitespace-nowrap text-sm text-gray-700 max-w-[200px] truncate"
+                              title={String(val)}
+                            >
+                              {String(val)}
+                            </td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
