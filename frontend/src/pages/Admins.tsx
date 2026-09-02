@@ -69,25 +69,25 @@ export default function Admins() {
   const togglePrivilege = async (adminId: string, currentPrivileges: Privileges | null, field: 'can_manage_users' | 'can_view_activities') => {
     const defaultPrivileges = { can_manage_users: true, can_view_activities: true };
     const privilegesToUpdate = currentPrivileges ? { ...currentPrivileges } : { ...defaultPrivileges };
-    
+
     privilegesToUpdate[field] = !privilegesToUpdate[field];
 
     try {
-      await axios.put(`http://localhost:8000/auth/admins/${adminId}/privileges`, 
+      await axios.put(`http://localhost:8000/auth/admins/${adminId}/privileges`,
         { privileges: privilegesToUpdate },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      
+
       // Optimistic update
-      setAdmins(prev => prev.map(a => 
+      setAdmins(prev => prev.map(a =>
         a.id === adminId ? { ...a, privileges: privilegesToUpdate } : a
       ));
-      
+
       // Keep modal state in sync
       if (selectedAdmin?.id === adminId) {
         setSelectedAdmin(prev => prev ? { ...prev, privileges: privilegesToUpdate } : null);
       }
-      
+
       // Log activity
       const targetAdmin = admins.find(a => a.id === adminId);
       if (targetAdmin) {
@@ -104,11 +104,11 @@ export default function Admins() {
   const toggleModuleStatus = async (adminId: string, currentPrivileges: Privileges | null, moduleName: string) => {
     const defaultPrivileges: Privileges = { can_manage_users: true, can_view_activities: true, disabled_modules: [] };
     const privilegesToUpdate = currentPrivileges ? { ...currentPrivileges } : { ...defaultPrivileges };
-    
+
     if (!privilegesToUpdate.disabled_modules) {
       privilegesToUpdate.disabled_modules = [];
     }
-    
+
     if (privilegesToUpdate.disabled_modules.includes(moduleName)) {
       privilegesToUpdate.disabled_modules = privilegesToUpdate.disabled_modules.filter(m => m !== moduleName);
     } else {
@@ -116,19 +116,19 @@ export default function Admins() {
     }
 
     try {
-      await axios.put(`http://localhost:8000/auth/admins/${adminId}/privileges`, 
+      await axios.put(`http://localhost:8000/auth/admins/${adminId}/privileges`,
         { privileges: privilegesToUpdate },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      
-      setAdmins(prev => prev.map(a => 
+
+      setAdmins(prev => prev.map(a =>
         a.id === adminId ? { ...a, privileges: privilegesToUpdate } : a
       ));
-      
+
       if (selectedAdmin?.id === adminId) {
         setSelectedAdmin(prev => prev ? { ...prev, privileges: privilegesToUpdate } : null);
       }
-      
+
       // Log activity
       const targetAdmin = admins.find(a => a.id === adminId);
       if (targetAdmin) {
@@ -150,13 +150,13 @@ export default function Admins() {
           headers: { Authorization: `Bearer ${token}` }
         });
       } else {
-        await axios.put(`http://localhost:8000/auth/users/${adminId}/status`, 
+        await axios.put(`http://localhost:8000/auth/users/${adminId}/status`,
           { is_active: !currentIsActive },
           { headers: { Authorization: `Bearer ${token}` } }
         );
       }
       fetchAdmins();
-      
+
       // Log activity
       const targetAdmin = admins.find(a => a.id === adminId);
       if (targetAdmin) {
@@ -246,7 +246,7 @@ export default function Admins() {
               ) : (
                 admins.map((admin) => {
                   const privileges = admin.privileges || { can_manage_users: true, can_view_activities: true };
-                  
+
                   return (
                     <tr key={admin.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-6 py-4 whitespace-nowrap">
@@ -281,13 +281,12 @@ export default function Admins() {
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
-                          admin.is_active 
-                            ? 'bg-green-50 text-green-700 border-green-200' 
-                            : !admin.is_verified
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${admin.is_active
+                          ? 'bg-green-50 text-green-700 border-green-200'
+                          : !admin.is_verified
                             ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
                             : 'bg-red-50 text-red-700 border-red-200'
-                        }`}>
+                          }`}>
                           {admin.is_active && <CheckCircle className="h-3 w-3 mr-1" />}
                           {!admin.is_verified && <Clock className="h-3 w-3 mr-1" />}
                           {(!admin.is_active && admin.is_verified) && <XCircle className="h-3 w-3 mr-1" />}
@@ -331,14 +330,14 @@ export default function Admins() {
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full animate-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between p-5 border-b border-gray-200">
               <h3 className="text-lg font-medium text-gray-900">Configure Privileges</h3>
-              <button 
+              <button
                 onClick={() => setShowPrivilegesModal(false)}
                 className="text-gray-400 hover:text-gray-500 transition-colors"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
-            
+
             <div className="p-5 space-y-6">
               <div className="text-sm text-gray-500">
                 Adjust privileges for <strong>{selectedAdmin.email}</strong>. Changes take effect instantly.
@@ -352,16 +351,14 @@ export default function Admins() {
                   </div>
                   <button
                     onClick={() => togglePrivilege(selectedAdmin.id, selectedAdmin.privileges, 'can_manage_users')}
-                    className={`relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none ${
-                      (selectedAdmin.privileges?.can_manage_users ?? true) ? 'bg-green-500' : 'bg-gray-200'
-                    }`}
+                    className={`relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none ${(selectedAdmin.privileges?.can_manage_users ?? true) ? 'bg-green-500' : 'bg-gray-200'
+                      }`}
                   >
-                    <span className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 ${
-                      (selectedAdmin.privileges?.can_manage_users ?? true) ? 'translate-x-5' : 'translate-x-0'
-                    }`} />
+                    <span className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 ${(selectedAdmin.privileges?.can_manage_users ?? true) ? 'translate-x-5' : 'translate-x-0'
+                      }`} />
                   </button>
                 </div>
-                
+
                 <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
                   <div>
                     <h4 className="text-sm font-medium text-gray-900">View Activities</h4>
@@ -369,13 +366,11 @@ export default function Admins() {
                   </div>
                   <button
                     onClick={() => togglePrivilege(selectedAdmin.id, selectedAdmin.privileges, 'can_view_activities')}
-                    className={`relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none ${
-                      (selectedAdmin.privileges?.can_view_activities ?? true) ? 'bg-green-500' : 'bg-gray-200'
-                    }`}
+                    className={`relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none ${(selectedAdmin.privileges?.can_view_activities ?? true) ? 'bg-green-500' : 'bg-gray-200'
+                      }`}
                   >
-                    <span className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 ${
-                      (selectedAdmin.privileges?.can_view_activities ?? true) ? 'translate-x-5' : 'translate-x-0'
-                    }`} />
+                    <span className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 ${(selectedAdmin.privileges?.can_view_activities ?? true) ? 'translate-x-5' : 'translate-x-0'
+                      }`} />
                   </button>
                 </div>
               </div>
@@ -413,14 +408,14 @@ export default function Admins() {
                 <h3 className="text-lg font-bold text-gray-900">Module Privileges</h3>
                 <p className="text-sm text-gray-500">Configure module access for {selectedAdmin.email}</p>
               </div>
-              <button 
+              <button
                 onClick={() => setShowModulePrivilegesModal(false)}
                 className="text-gray-400 hover:text-gray-500 transition-colors"
               >
                 <X className="h-6 w-6" />
               </button>
             </div>
-            
+
             <div className="flex flex-1 overflow-hidden">
               {/* Sidebar */}
               <div className="w-1/3 border-r border-gray-200 bg-white overflow-y-auto">
@@ -429,11 +424,10 @@ export default function Admins() {
                     <li key={mod}>
                       <button
                         onClick={() => setSelectedModule(mod)}
-                        className={`w-full text-left px-5 py-4 text-sm font-medium transition-colors flex items-center justify-between ${
-                          selectedModule === mod 
-                            ? 'bg-purple-50 text-purple-700 border-l-4 border-purple-500' 
-                            : 'text-gray-700 hover:bg-gray-50 border-l-4 border-transparent'
-                        }`}
+                        className={`w-full text-left px-5 py-4 text-sm font-medium transition-colors flex items-center justify-between ${selectedModule === mod
+                          ? 'bg-purple-50 text-purple-700 border-l-4 border-purple-500'
+                          : 'text-gray-700 hover:bg-gray-50 border-l-4 border-transparent'
+                          }`}
                       >
                         {mod}
                         {selectedAdmin.privileges?.disabled_modules?.includes(mod) && (
@@ -446,7 +440,7 @@ export default function Admins() {
                   ))}
                 </ul>
               </div>
-              
+
               {/* Main Content */}
               <div className="w-2/3 bg-gray-50 p-8 overflow-y-auto">
                 {selectedModule ? (
@@ -458,21 +452,20 @@ export default function Admins() {
                       </div>
                       <button
                         onClick={() => toggleModuleStatus(selectedAdmin.id, selectedAdmin.privileges, selectedModule)}
-                        className={`px-4 py-2 rounded-md text-sm font-medium shadow-sm transition-colors ${
-                          selectedAdmin.privileges?.disabled_modules?.includes(selectedModule) 
-                            ? 'bg-green-600 text-white hover:bg-green-700 border border-transparent'
-                            : 'bg-red-100 text-red-700 hover:bg-red-200 border border-red-200'
-                        }`}
+                        className={`px-4 py-2 rounded-md text-sm font-medium shadow-sm transition-colors ${selectedAdmin.privileges?.disabled_modules?.includes(selectedModule)
+                          ? 'bg-green-600 text-white hover:bg-green-700 border border-transparent'
+                          : 'bg-red-100 text-red-700 hover:bg-red-200 border border-red-200'
+                          }`}
                       >
                         {selectedAdmin.privileges?.disabled_modules?.includes(selectedModule) ? 'Enable Module' : 'Disable Module'}
                       </button>
                     </div>
-                    
+
                     <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200 text-center">
                       <div className="text-gray-500 flex flex-col items-center justify-center min-h-[200px]">
                         <Settings className="h-12 w-12 text-gray-300 mb-4" />
-                        <p className="text-base font-medium text-gray-900">Detailed functions coming soon</p>
-                        <p className="text-sm mt-2">More granular controls for the {selectedModule} module will be added here in a future update.</p>
+                        <p className="text-base font-medium text-gray-900"></p>
+                        <p className="text-sm mt-2"></p>
                       </div>
                     </div>
                   </div>

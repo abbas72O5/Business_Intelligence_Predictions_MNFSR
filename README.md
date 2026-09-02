@@ -123,3 +123,14 @@ Once both servers are running:
 - **Frontend Cache Isolation (Workspace Security):**
   - **Strict Per-User Browser State:** Identified and resolved a severe data leakage vulnerability where live, unsaved canvas configurations were cached globally in the browser's `localStorage`.
   - **Session Sandboxing:** Dynamically prefixed all `localStorage` state keys (e.g. `obs_charts`, `pred_canvas`) with the actively authenticated User's UUID. This completely isolates workspaces, ensuring that multiple users sharing the same computer/browser cannot view or overwrite each other's live, unsaved BI canvases.
+
+- **Granular Administrative Controls:**
+  - **Module-Level Privileges:** Upgraded the Admin Management console to allow Superadmins to strictly toggle access to individual system modules (e.g., Data Selection, Uploading, Observations) for specific Zone Admins.
+  - **Dynamic Navigation:** The frontend seamlessly ingests these `disabled_modules` and dynamically reconstructs the navigation sidebar, instantly removing restricted modules from the UI entirely without requiring page reloads.
+
+- **Unified Data Management & Ingestion:**
+  - **Centralized Data Hub:** Consolidated user-uploaded datasets and submitted Monthly Reports into a single, high-level "Data Management" workspace accessible exclusively to administrative tiers.
+  - **One-Click ETL Ingestion:** Admins can preview user-submitted files and invoke a 1-click "Import to Data Uploading" pipeline. This automatically extracts raw JSON/CSV and legacy Python Numpy structures, casts them into standard primitives, and aggregates them into high-performance analytical Parquet files ready for the DuckDB engine.
+
+- **Aesthetic UI Modernization:**
+  - **Custom Notification Ecosystem:** Systematically ripped out all legacy browser `alert()` popups across the application, replacing them with custom, DOM-integrated notification banners that perfectly match the application's clean, green branding aesthetic.
