@@ -254,21 +254,21 @@ export default function MonthlyReports() {
       <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
         <h4 className="text-sm font-medium text-gray-700 mb-3">{title}</h4>
         <div className="grid grid-cols-2 gap-4">
-          <div>
-            <label className="block text-xs text-gray-500">Opening Balance (kg)</label>
-            <input type="number" value={rm.opening || ''} onChange={e => setter({...rm, opening: parseFloat(e.target.value) || 0})} className="mt-1 w-full px-3 py-1.5 text-sm border border-gray-300 rounded" />
+          <div className="flex flex-col justify-end">
+            <label className="block text-xs text-gray-500 h-8 flex items-end pb-1">Opening Balance (kg)</label>
+            <input type="number" value={rm.opening || ''} onChange={e => setter({...rm, opening: parseFloat(e.target.value) || 0})} className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded" />
           </div>
-          <div>
-            <label className="block text-xs text-gray-500">Procurement (kg)</label>
-            <input type="number" value={rm.procurement || ''} onChange={e => setter({...rm, procurement: parseFloat(e.target.value) || 0})} className="mt-1 w-full px-3 py-1.5 text-sm border border-gray-300 rounded" />
+          <div className="flex flex-col justify-end">
+            <label className="block text-xs text-gray-500 h-8 flex items-end pb-1">Procurement (kg)</label>
+            <input type="number" value={rm.procurement || ''} onChange={e => setter({...rm, procurement: parseFloat(e.target.value) || 0})} className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded" />
           </div>
-          <div>
-            <label className="block text-xs text-gray-500">Consumption (kg)</label>
-            <input type="number" value={rm.consumption || ''} onChange={e => setter({...rm, consumption: parseFloat(e.target.value) || 0})} className="mt-1 w-full px-3 py-1.5 text-sm border border-gray-300 rounded" />
+          <div className="flex flex-col justify-end">
+            <label className="block text-xs text-gray-500 h-8 flex items-end pb-1">Consumption (kg)</label>
+            <input type="number" value={rm.consumption || ''} onChange={e => setter({...rm, consumption: parseFloat(e.target.value) || 0})} className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded" />
           </div>
-          <div>
-            <label className="block text-xs text-gray-500">Closing Balance (kg)</label>
-            <input type="number" value={rm.closing || ''} onChange={e => setter({...rm, closing: parseFloat(e.target.value) || 0})} className="mt-1 w-full px-3 py-1.5 text-sm border border-gray-300 rounded focus:outline-none" />
+          <div className="flex flex-col justify-end">
+            <label className="block text-xs text-gray-500 h-8 flex items-end pb-1">Closing Balance (kg)</label>
+            <input type="number" value={rm.closing || ''} onChange={e => setter({...rm, closing: parseFloat(e.target.value) || 0})} className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded focus:outline-none" />
           </div>
         </div>
       </div>
