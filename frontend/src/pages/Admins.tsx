@@ -25,17 +25,8 @@ export default function Admins() {
   const [error, setError] = useState<string | null>(null);
 
   // Modal State
-  const [showModal, setShowModal] = useState(false);
-  const [newEmail, setNewEmail] = useState('');
-  const [newPassword, setNewPassword] = useState('');
-  const [newZone, setNewZone] = useState('');
-  const [newPrivileges, setNewPrivileges] = useState<Privileges>({
-    can_manage_users: true,
-    can_view_activities: true
-  });
   const [showPrivilegesModal, setShowPrivilegesModal] = useState(false);
   const [selectedAdmin, setSelectedAdmin] = useState<AdminData | null>(null);
-  const [departmentsList, setZonesList] = useState<{name: string, is_active: boolean}[]>([]);
 
   const fetchAdmins = async () => {
     try {
@@ -55,23 +46,6 @@ export default function Admins() {
   useEffect(() => {
     if (token && currentUser?.role === 'superadmin') {
       fetchAdmins();
-      
-      // Fetch departments for the create admin dropdown
-      const fetchZones = async () => {
-        try {
-          const response = await axios.get('http://localhost:8000/departments', {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          const activeDepts = response.data.filter((d: any) => d.is_active);
-          setZonesList(activeDepts);
-          if (activeDepts.length > 0) {
-            setNewZone(activeDepts[0].name);
-          }
-        } catch (err) {
-          console.error('Failed to fetch departments', err);
-        }
-      };
-      fetchZones();
     }
   }, [token, currentUser]);
 
@@ -141,35 +115,6 @@ export default function Admins() {
     }
   };
 
-  const handleCreateAdmin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      await axios.post('http://localhost:8000/auth/admins', {
-        email: newEmail,
-        password: newPassword,
-        department: newZone,
-        privileges: newPrivileges
-      }, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      
-      setShowModal(false);
-      setNewEmail('');
-      setNewPassword('');
-      setNewZone('');
-      setNewPrivileges({ can_manage_users: true, can_view_activities: true });
-      fetchAdmins();
-      
-      // Log activity
-      axios.post('http://localhost:8000/activities', {
-        action: 'Create Admin',
-        details: { user: newEmail, department: newZone }
-      }, { headers: { Authorization: `Bearer ${token}` } }).catch(e => console.error(e));
-    } catch (err: any) {
-      alert(err.response?.data?.detail || 'Failed to create admin');
-    }
-  };
-
   if (currentUser?.role !== 'superadmin') {
     return (
       <div className="flex flex-col items-center justify-center h-96 text-gray-500">
@@ -189,13 +134,6 @@ export default function Admins() {
             View and manage zone administrators and their granular privileges.
           </p>
         </div>
-        <button
-          onClick={() => setShowModal(true)}
-          className="inline-flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md shadow-sm transition-colors"
-        >
-          <UserPlus className="h-4 w-4 mr-2" />
-          Create New Admin
-        </button>
       </div>
 
       {error && (
@@ -327,113 +265,6 @@ export default function Admins() {
           </table>
         </div>
       </div>
-
-      {/* Create Admin Modal */}
-      {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-transparent backdrop-blur-sm">
-          <div className="bg-white rounded-xl shadow-xl max-w-md w-full animate-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between p-5 border-b border-gray-200">
-              <h3 className="text-lg font-medium text-gray-900">Create Zone Admin</h3>
-              <button 
-                onClick={() => setShowModal(false)}
-                className="text-gray-400 hover:text-gray-500 transition-colors"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            
-            <form onSubmit={handleCreateAdmin} className="p-5 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Email Address</label>
-                <input
-                  type="email"
-                  required
-                  value={newEmail}
-                  onChange={(e) => setNewEmail(e.target.value)}
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                  placeholder="admin@ministry.gov"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Password</label>
-                <input
-                  type="password"
-                  required
-                  minLength={6}
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-sm font-medium text-gray-700">Zone</label>
-                <select
-                  required
-                  value={newZone}
-                  onChange={(e) => setNewZone(e.target.value)}
-                  className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-green-700 focus:border-green-700 sm:text-sm rounded-md border bg-white"
-                >
-                  {departmentsList.map(dept => (
-                    <option key={dept.name} value={dept.name}>{dept.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="pt-4 border-t border-gray-200 space-y-4">
-                <h4 className="text-sm font-medium text-gray-900">Initial Privileges</h4>
-                
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-700">Manage Users</span>
-                  <button
-                    type="button"
-                    onClick={() => setNewPrivileges(prev => ({ ...prev, can_manage_users: !prev.can_manage_users }))}
-                    className={`relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none ${
-                      newPrivileges.can_manage_users ? 'bg-green-500' : 'bg-gray-200'
-                    }`}
-                  >
-                    <span className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 ${
-                      newPrivileges.can_manage_users ? 'translate-x-5' : 'translate-x-0'
-                    }`} />
-                  </button>
-                </div>
-                
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-gray-700">View Activities</span>
-                  <button
-                    type="button"
-                    onClick={() => setNewPrivileges(prev => ({ ...prev, can_view_activities: !prev.can_view_activities }))}
-                    className={`relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none ${
-                      newPrivileges.can_view_activities ? 'bg-green-500' : 'bg-gray-200'
-                    }`}
-                  >
-                    <span className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 ${
-                      newPrivileges.can_view_activities ? 'translate-x-5' : 'translate-x-0'
-                    }`} />
-                  </button>
-                </div>
-              </div>
-
-              <div className="pt-5 flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="bg-green-600 border border-transparent rounded-md shadow-sm py-2 px-4 text-sm font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-                >
-                  Create Admin
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* Privileges Modal */}
       {showPrivilegesModal && selectedAdmin && (

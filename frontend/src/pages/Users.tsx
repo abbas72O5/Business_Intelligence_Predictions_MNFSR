@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
-import { Search, Shield, ShieldAlert, CheckCircle, XCircle, Clock, UserCheck, UserX, Plus, X } from 'lucide-react';
+import { Search, Shield, ShieldAlert, CheckCircle, XCircle, Clock, UserCheck, UserX, Plus, X, UserPlus } from 'lucide-react';
 
 interface UserData {
   id: string;
@@ -33,9 +33,16 @@ export default function Users() {
   const [newMillName, setNewMillName] = useState('');
   const [creating, setCreating] = useState(false);
 
-
-
-  const fetchUsers = async () => {
+  // Admin Creation Modal State
+  const [showAdminModal, setShowAdminModal] = useState(false);
+  const [newAdminEmail, setNewAdminEmail] = useState('');
+  const [newAdminPassword, setNewAdminPassword] = useState('');
+  const [newAdminZone, setNewAdminZone] = useState('');
+  const [newAdminPrivileges, setNewAdminPrivileges] = useState({
+    can_manage_users: true,
+    can_view_activities: true
+  });
+  const [departmentsList, setDepartmentsList] = useState<{ name: string, is_active: boolean }[]>([]); const fetchUsers = async () => {
     try {
       setLoading(true);
       const response = await axios.get('http://localhost:8000/auth/users', {
@@ -53,8 +60,25 @@ export default function Users() {
   useEffect(() => {
     if (token) {
       fetchUsers();
+      if (currentUser?.role === 'superadmin') {
+        const fetchZones = async () => {
+          try {
+            const response = await axios.get('http://localhost:8000/departments', {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            const activeDepts = response.data.filter((d: any) => d.is_active);
+            setDepartmentsList(activeDepts);
+            if (activeDepts.length > 0) {
+              setNewAdminZone(activeDepts[0].name);
+            }
+          } catch (err) {
+            console.error('Failed to fetch departments', err);
+          }
+        };
+        fetchZones();
+      }
     }
-  }, [token]);
+  }, [token, currentUser]);
 
   const toggleUserStatus = async (userId: string, currentIsActive: boolean, isPending: boolean) => {
     try {
@@ -86,6 +110,35 @@ export default function Users() {
     }
   };
 
+  const handleCreateAdmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await axios.post('http://localhost:8000/auth/admins', {
+        email: newAdminEmail,
+        password: newAdminPassword,
+        department: newAdminZone,
+        privileges: newAdminPrivileges
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      setShowAdminModal(false);
+      setNewAdminEmail('');
+      setNewAdminPassword('');
+      setNewAdminZone('');
+      setNewAdminPrivileges({ can_manage_users: true, can_view_activities: true });
+      fetchUsers();
+
+      // Log activity
+      axios.post('http://localhost:8000/activities', {
+        action: 'Create Admin',
+        details: { user: newAdminEmail, department: newAdminZone }
+      }, { headers: { Authorization: `Bearer ${token}` } }).catch(e => console.error(e));
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Failed to create admin');
+    }
+  };
+
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newEmail || !newPassword || !newOwnerName || !newMillName) return;
@@ -103,8 +156,8 @@ export default function Users() {
 
       // Log activity
       axios.post('http://localhost:8000/activities', {
-        action: 'Create User',
-        details: { email: newEmail, mill: newMillName }
+        action: 'Create Mill Owner',
+        details: { user: newEmail, mill_name: newMillName, department: currentUser?.department || 'Global' }
       }, { headers: { Authorization: `Bearer ${token}` } }).catch(e => console.error(e));
 
       setShowModal(false);
@@ -119,8 +172,6 @@ export default function Users() {
       setCreating(false);
     }
   };
-
-
 
   const getStatus = (u: UserData) => {
     if (!u.is_verified) return 'Pending';
@@ -155,13 +206,24 @@ export default function Users() {
         </div>
 
         {canManageUsers && (
-          <button
-            onClick={() => setShowModal(true)}
-            className="inline-flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md shadow-sm transition-colors"
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            Create Mill Owner
-          </button>
+          <div className="flex items-center space-x-3">
+            {currentUser?.role === 'superadmin' && (
+              <button
+                onClick={() => setShowAdminModal(true)}
+                className="inline-flex items-center px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-md shadow-sm transition-colors"
+              >
+                <UserPlus className="h-4 w-4 mr-2" />
+                Create Admin
+              </button>
+            )}
+            <button
+              onClick={() => setShowModal(true)}
+              className="inline-flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md shadow-sm transition-colors"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Create Mill Owner
+            </button>
+          </div>
         )}
       </div>
 
@@ -192,8 +254,8 @@ export default function Users() {
               key={filter}
               onClick={() => setStatusFilter(filter)}
               className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${statusFilter === filter
-                  ? 'bg-white text-green-800 shadow-sm'
-                  : 'text-gray-500 hover:text-gray-900'
+                ? 'bg-white text-green-800 shadow-sm'
+                : 'text-gray-500 hover:text-gray-900'
                 }`}
             >
               {filter}
@@ -282,10 +344,10 @@ export default function Users() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${status === 'Active'
-                            ? 'bg-green-50 text-green-700 border-green-200'
-                            : status === 'Pending'
-                              ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
-                              : 'bg-red-50 text-red-700 border-red-200'
+                          ? 'bg-green-50 text-green-700 border-green-200'
+                          : status === 'Pending'
+                            ? 'bg-yellow-50 text-yellow-700 border-yellow-200'
+                            : 'bg-red-50 text-red-700 border-red-200'
                           }`}>
                           {status === 'Active' && <CheckCircle className="h-3 w-3 mr-1" />}
                           {status === 'Pending' && <Clock className="h-3 w-3 mr-1" />}
@@ -406,6 +468,109 @@ export default function Users() {
                   className="px-4 py-2 text-sm font-medium text-white bg-green-600 border border-transparent rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50"
                 >
                   {creating ? 'Creating...' : 'Create Owner'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Admin Creation Modal */}
+      {showAdminModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
+              <h3 className="text-lg font-bold text-gray-900">Create New Zone Admin</h3>
+              <button
+                onClick={() => setShowAdminModal(false)}
+                className="text-gray-400 hover:text-gray-500 transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateAdmin} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Email Address</label>
+                <input
+                  type="email"
+                  required
+                  value={newAdminEmail}
+                  onChange={(e) => setNewAdminEmail(e.target.value)}
+                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                  placeholder="admin@ministry.gov"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Password</label>
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  value={newAdminPassword}
+                  onChange={(e) => setNewAdminPassword(e.target.value)}
+                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Zone</label>
+                <select
+                  required
+                  value={newAdminZone}
+                  onChange={(e) => setNewAdminZone(e.target.value)}
+                  className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-green-700 focus:border-green-700 sm:text-sm rounded-md border bg-white"
+                >
+                  {departmentsList.map(dept => (
+                    <option key={dept.name} value={dept.name}>{dept.name}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="pt-4 border-t border-gray-200 space-y-4">
+                <h4 className="text-sm font-medium text-gray-900">Initial Privileges</h4>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-700">Manage Users</span>
+                  <button
+                    type="button"
+                    onClick={() => setNewAdminPrivileges(prev => ({ ...prev, can_manage_users: !prev.can_manage_users }))}
+                    className={`relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none ${newAdminPrivileges.can_manage_users ? 'bg-green-500' : 'bg-gray-200'
+                      }`}
+                  >
+                    <span className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 ${newAdminPrivileges.can_manage_users ? 'translate-x-5' : 'translate-x-0'
+                      }`} />
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-700">View Activities</span>
+                  <button
+                    type="button"
+                    onClick={() => setNewAdminPrivileges(prev => ({ ...prev, can_view_activities: !prev.can_view_activities }))}
+                    className={`relative inline-flex flex-shrink-0 h-6 w-11 border-2 border-transparent rounded-full cursor-pointer transition-colors ease-in-out duration-200 focus:outline-none ${newAdminPrivileges.can_view_activities ? 'bg-green-500' : 'bg-gray-200'
+                      }`}
+                  >
+                    <span className={`pointer-events-none inline-block h-5 w-5 rounded-full bg-white shadow transform ring-0 transition ease-in-out duration-200 ${newAdminPrivileges.can_view_activities ? 'translate-x-5' : 'translate-x-0'
+                      }`} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="pt-5 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setShowAdminModal(false)}
+                  className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="bg-green-600 border border-transparent rounded-md shadow-sm py-2 px-4 text-sm font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+                >
+                  Create Admin
                 </button>
               </div>
             </form>
