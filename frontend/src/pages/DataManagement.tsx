@@ -35,6 +35,11 @@ export default function DataManagement() {
   const [loadingReports, setLoadingReports] = useState(false);
   const [importingReport, setImportingReport] = useState<string | null>(null);
 
+  // Selection State for Reports Compilation
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [compilingReports, setCompilingReports] = useState(false);
+
   // User Datasets Modal State
   const [userDatasets, setUserDatasets] = useState<any[]>([]);
   const [userDatasetsModalOpen, setUserDatasetsModalOpen] = useState(false);
@@ -137,6 +142,26 @@ export default function DataManagement() {
     }
   };
 
+  const handleCompileReports = async () => {
+    if (selectedUserIds.length === 0) return;
+    try {
+      setCompilingReports(true);
+      setImportMessage(null);
+      await axios.post('http://localhost:8000/mills/reports/compile', 
+        { user_ids: selectedUserIds },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setImportMessage({ type: 'success', text: 'Selected reports successfully compiled! Check the Data Uploading module.' });
+      setIsSelectionMode(false);
+      setSelectedUserIds([]);
+      setTimeout(() => setImportMessage(null), 5000);
+    } catch (err: any) {
+      setImportMessage({ type: 'error', text: err.response?.data?.detail || 'Failed to compile reports' });
+    } finally {
+      setCompilingReports(false);
+    }
+  };
+
   const handleViewPreview = async (dataset: any) => {
     try {
       setPreviewLoading(true);
@@ -206,8 +231,52 @@ export default function DataManagement() {
           </p>
         </div>
         
-
+        {!isSelectionMode ? (
+          <button
+            onClick={() => setIsSelectionMode(true)}
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 transition-colors"
+          >
+            <Database className="h-4 w-4 mr-2" />
+            Compile Reports
+          </button>
+        ) : (
+          <div className="flex items-center space-x-3 bg-green-50 p-2 rounded-lg border border-green-200">
+            <span className="text-sm font-medium text-green-800 px-2">{selectedUserIds.length} Selected</span>
+            <button
+              onClick={() => {
+                setIsSelectionMode(false);
+                setSelectedUserIds([]);
+              }}
+              className="inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleCompileReports}
+              disabled={selectedUserIds.length === 0 || compilingReports}
+              className="inline-flex items-center px-3 py-1.5 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
+            >
+              {compilingReports ? (
+                <>
+                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Compiling...
+                </>
+              ) : 'Confirm & Compile'}
+            </button>
+          </div>
+        )}
       </div>
+
+      {importMessage && (
+        <div className={`p-4 rounded-md text-sm border ${
+          importMessage.type === 'success' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'
+        }`}>
+          {importMessage.text}
+        </div>
+      )}
 
       {error && (
         <div className="bg-red-50 text-red-600 p-4 rounded-md text-sm border border-red-200">
@@ -253,6 +322,22 @@ export default function DataManagement() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
+                {isSelectionMode && (
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-10">
+                    <input 
+                      type="checkbox"
+                      className="rounded border-gray-300 text-green-600 focus:ring-green-500 h-4 w-4"
+                      checked={filteredUsers.length > 0 && selectedUserIds.length === filteredUsers.length}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setSelectedUserIds(filteredUsers.map(u => u.id));
+                        } else {
+                          setSelectedUserIds([]);
+                        }
+                      }}
+                    />
+                  </th>
+                )}
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mill Info</th>
                 <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
@@ -287,6 +372,22 @@ export default function DataManagement() {
                   
                   return (
                     <tr key={u.id} className="hover:bg-gray-50 transition-colors">
+                      {isSelectionMode && (
+                        <td className="px-6 py-4 whitespace-nowrap text-center">
+                          <input 
+                            type="checkbox"
+                            className="rounded border-gray-300 text-green-600 focus:ring-green-500 h-4 w-4"
+                            checked={selectedUserIds.includes(u.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedUserIds([...selectedUserIds, u.id]);
+                              } else {
+                                setSelectedUserIds(selectedUserIds.filter(id => id !== u.id));
+                              }
+                            }}
+                          />
+                        </td>
+                      )}
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
                           <div className="flex-shrink-0 h-10 w-10 bg-green-100 rounded-full flex items-center justify-center">

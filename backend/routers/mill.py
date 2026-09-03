@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from typing import List
 from bson import ObjectId
+from pydantic import BaseModel
 from database import db
 from routers.auth import get_current_user
 from models.user import RoleEnum
@@ -246,3 +247,93 @@ async def export_user_reports(target_user_id: str, current_user = Depends(get_cu
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", 
         headers=headers
     )
+
+class CompileReportsPayload(BaseModel):
+    user_ids: List[str]
+
+@router.post("/reports/compile")
+async def compile_selected_reports(payload: CompileReportsPayload, current_user = Depends(get_current_user)):
+    if current_user["role"] not in [RoleEnum.admin.value, RoleEnum.superadmin.value]:
+        raise HTTPException(status_code=403, detail="Only admins can compile reports")
+
+    if not payload.user_ids:
+        raise HTTPException(status_code=400, detail="No users selected")
+
+    all_flat_data = []
+
+    for target_user_id in payload.user_ids:
+        target_user = await db.users.find_one({"_id": ObjectId(target_user_id)})
+        if not target_user:
+            continue
+            
+        mill_id = target_user.get("mill_id")
+        if not mill_id:
+            continue
+            
+        mill = await db.mills.find_one({"_id": ObjectId(mill_id)})
+        if not mill:
+            continue
+
+        cursor = db.mill_reports.find({"mill_id": mill_id}).sort("created_at", -1)
+        reports = await cursor.to_list(length=100)
+        
+        if reports:
+            all_flat_data.extend([flatten_report(r, mill, target_user) for r in reports])
+
+    if not all_flat_data:
+        raise HTTPException(status_code=404, detail="No reports found for the selected users")
+
+    df = pd.DataFrame(all_flat_data)
+    
+    table_id = str(uuid.uuid4())
+    # Add a timestamp to the filename as requested by user
+    timestamp = datetime.now().strftime("%b%d_%H%M")
+    filename = f"Compiled_Zone_Reports_{timestamp}.parquet"
+    parquet_path = os.path.join(STORAGE_DIR, f"{table_id}.parquet")
+    
+    df.columns = df.columns.astype(str)
+    for col in df.select_dtypes(include=['object']).columns:
+        df[col] = df[col].astype(str)
+        
+    df.to_parquet(parquet_path, engine="pyarrow")
+    
+    columns_meta = []
+    for col, dtype in df.dtypes.items():
+        unique_count = df[col].nunique(dropna=True)
+        try:
+            min_val = df[col].min() if not df[col].isnull().all() else None
+            max_val = df[col].max() if not df[col].isnull().all() else None
+            
+            # Convert numpy types to standard python types
+            if hasattr(min_val, 'item'): min_val = min_val.item()
+            if hasattr(max_val, 'item'): max_val = max_val.item()
+        except:
+            min_val = None
+            max_val = None
+
+        columns_meta.append(ColumnMetadata(
+            name=str(col), 
+            type=map_dtype_to_string(dtype),
+            unique_count=int(unique_count),
+            min_val=min_val,
+            max_val=max_val
+        ).model_dump())
+        
+    table_doc = {
+        "table_id": table_id,
+        "filename": filename,
+        "storage_path": parquet_path,
+        "row_count": len(df),
+        "columns": columns_meta,
+        "department": current_user.get("department") or "Global",
+        "visibility": "private",
+        "uploaded_at": datetime.utcnow(),
+        "uploaded_by": str(current_user["_id"]),
+        "imported_by": [str(current_user["_id"])],
+        "uploader_email": current_user.get("email"),
+        "uploader_name": "Aggregated Compiler",
+        "uploader_department": current_user.get("department")
+    }
+    
+    await db.table_metadata.insert_one(table_doc)
+    return {"status": "success", "table_id": table_id, "filename": filename}
