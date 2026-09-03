@@ -345,24 +345,24 @@ export default function DataManagement() {
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex justify-end items-center space-x-2">
                           {u.role === 'user' && (
-                            <>
-                              <button
-                                onClick={() => handleViewUserReports(u)}
-                                className="inline-flex items-center text-blue-600 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-md transition-colors"
-                                title="View Monthly Reports"
-                              >
-                                <FileText className="h-4 w-4 mr-1.5" />
-                                Reports
-                              </button>
-                              <button
-                                onClick={() => handleViewUserDatasets(u)}
-                                className="inline-flex items-center text-purple-600 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-md transition-colors"
-                                title="View Uploaded Data"
-                              >
-                                <Database className="h-4 w-4 mr-1.5" />
-                                Data Uploaded
-                              </button>
-                            </>
+                            <button
+                              onClick={() => handleViewUserReports(u)}
+                              className="inline-flex items-center text-blue-600 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-md transition-colors"
+                              title="View Monthly Reports"
+                            >
+                              <FileText className="h-4 w-4 mr-1.5" />
+                              Reports
+                            </button>
+                          )}
+                          {(u.role === 'user' || u.role === 'admin') && (
+                            <button
+                              onClick={() => handleViewUserDatasets(u)}
+                              className="inline-flex items-center text-purple-600 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-md transition-colors"
+                              title="View Uploaded Data"
+                            >
+                              <Database className="h-4 w-4 mr-1.5" />
+                              Data Uploaded
+                            </button>
                           )}
 
                         </div>

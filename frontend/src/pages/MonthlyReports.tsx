@@ -1,16 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useAuth } from '../context/AuthContext';
-import { Save, AlertCircle, Building2, User, MapPin, Settings, CheckCircle2, History, FileText, ClipboardList, Database, DollarSign, Eye, X, Download } from 'lucide-react';
-
-interface MillProfile {
-  id?: string;
-  name: string;
-  owner_name: string;
-  location: string;
-  installed_spindles: number;
-  installed_rotors: number;
-}
+import { CheckCircle2, History, FileText, ClipboardList, Database, DollarSign, Eye, X, Download } from 'lucide-react';
 
 interface YarnDetail {
   count: string;
@@ -26,7 +17,7 @@ interface RawMaterial {
 
 export default function MonthlyReports() {
   const { token } = useAuth();
-  
+
   // Tabs
   const [activeTab, setActiveTab] = useState<'formA' | 'genInfo' | 'rawMaterial' | 'cessStatus' | 'history'>('formA');
   const tabs = [
@@ -40,9 +31,9 @@ export default function MonthlyReports() {
   // ================= State: Monthly Report =================
   const [submittingReport, setSubmittingReport] = useState(false);
   const [reportMsg, setReportMsg] = useState({ type: '', text: '' });
-  
+
   // Base
-  const [reportingMonth, setReportingMonth] = useState(() => {
+  const [reportingMonth] = useState(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   });
@@ -75,7 +66,7 @@ export default function MonthlyReports() {
   const [rmDomestic, setRmDomestic] = useState<RawMaterial>(initialRaw);
   const [rmImported, setRmImported] = useState<RawMaterial>(initialRaw);
   const [rmSynthetic, setRmSynthetic] = useState<RawMaterial>(initialRaw);
-  
+
 
   // Cess Status
   const [cessStatus, setCessStatus] = useState({
@@ -91,25 +82,9 @@ export default function MonthlyReports() {
   // ================= Effects =================
   useEffect(() => {
     if (token) {
-      fetchProfile();
       fetchReports();
     }
   }, [token]);
-
-  const fetchProfile = async () => {
-    try {
-      const res = await axios.get('http://localhost:8000/mills/me', { headers: { Authorization: `Bearer ${token}` } });
-      setMillProfile({
-        name: res.data.name || '',
-        owner_name: res.data.owner_name || '',
-        location: res.data.location || '',
-        installed_spindles: res.data.installed_spindles || 0,
-        installed_rotors: res.data.installed_rotors || 0,
-      });
-    } catch (err) {
-      console.error(err);
-    }
-  };
 
   const fetchReports = async () => {
     try {
@@ -124,24 +99,6 @@ export default function MonthlyReports() {
   };
 
   // ================= Handlers =================
-  const handleSaveProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      setSavingProfile(true);
-      await axios.put('http://localhost:8000/mills/me', millProfile, { headers: { Authorization: `Bearer ${token}` } });
-      setProfileMsg({ type: 'success', text: 'Profile updated successfully!' });
-      
-      axios.post('http://localhost:8000/activities', {
-        action: 'Update Profile', details: { mill: millProfile.name }
-      }, { headers: { Authorization: `Bearer ${token}` } }).catch(e => console.error(e));
-      
-      setTimeout(() => setProfileMsg({ type: '', text: '' }), 3000);
-    } catch (err: any) {
-      setProfileMsg({ type: 'error', text: err.response?.data?.detail || 'Failed to update profile' });
-    } finally {
-      setSavingProfile(false);
-    }
-  };
 
   const handleExportReports = async () => {
     try {
@@ -195,7 +152,7 @@ export default function MonthlyReports() {
       setSubmittingReport(true);
       await axios.post('http://localhost:8000/mills/me/reports', payload, { headers: { Authorization: `Bearer ${token}` } });
       setReportMsg({ type: 'success', text: 'Monthly report submitted successfully!' });
-      
+
       axios.post('http://localhost:8000/activities', {
         action: 'Submit Monthly Report', details: { month: reportingMonth }
       }, { headers: { Authorization: `Bearer ${token}` } }).catch(e => console.error(e));
@@ -256,19 +213,19 @@ export default function MonthlyReports() {
         <div className="grid grid-cols-2 gap-4">
           <div className="flex flex-col justify-end">
             <label className="block text-xs text-gray-500 h-8 flex items-end pb-1">Opening Balance (kg)</label>
-            <input type="number" value={rm.opening || ''} onChange={e => setter({...rm, opening: parseFloat(e.target.value) || 0})} className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded" />
+            <input type="number" value={rm.opening || ''} onChange={e => setter({ ...rm, opening: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded" />
           </div>
           <div className="flex flex-col justify-end">
             <label className="block text-xs text-gray-500 h-8 flex items-end pb-1">Procurement (kg)</label>
-            <input type="number" value={rm.procurement || ''} onChange={e => setter({...rm, procurement: parseFloat(e.target.value) || 0})} className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded" />
+            <input type="number" value={rm.procurement || ''} onChange={e => setter({ ...rm, procurement: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded" />
           </div>
           <div className="flex flex-col justify-end">
             <label className="block text-xs text-gray-500 h-8 flex items-end pb-1">Consumption (kg)</label>
-            <input type="number" value={rm.consumption || ''} onChange={e => setter({...rm, consumption: parseFloat(e.target.value) || 0})} className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded" />
+            <input type="number" value={rm.consumption || ''} onChange={e => setter({ ...rm, consumption: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded" />
           </div>
           <div className="flex flex-col justify-end">
             <label className="block text-xs text-gray-500 h-8 flex items-end pb-1">Closing Balance (kg)</label>
-            <input type="number" value={rm.closing || ''} onChange={e => setter({...rm, closing: parseFloat(e.target.value) || 0})} className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded focus:outline-none" />
+            <input type="number" value={rm.closing || ''} onChange={e => setter({ ...rm, closing: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-1.5 text-sm border border-gray-300 rounded focus:outline-none" />
           </div>
         </div>
       </div>
@@ -277,7 +234,7 @@ export default function MonthlyReports() {
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-500">
-      
+
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Mill Dashboard</h1>
         <p className="mt-1 text-sm text-gray-500">Manage your profile and submit mandatory monthly returns.</p>
@@ -295,11 +252,10 @@ export default function MonthlyReports() {
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id as any)}
-                    className={`flex items-center px-4 py-4 text-sm font-medium transition-colors border-l-4 ${
-                      isActive 
-                        ? 'border-green-600 bg-green-50 text-green-700' 
-                        : 'border-transparent text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                    }`}
+                    className={`flex items-center px-4 py-4 text-sm font-medium transition-colors border-l-4 ${isActive
+                      ? 'border-green-600 bg-green-50 text-green-700'
+                      : 'border-transparent text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                      }`}
                   >
                     <Icon className={`h-5 w-5 mr-3 ${isActive ? 'text-green-600' : 'text-gray-400'}`} />
                     {tab.name}
@@ -314,13 +270,13 @@ export default function MonthlyReports() {
             <div className="mt-6 bg-white p-5 rounded-xl shadow-sm border border-gray-200 text-center">
               <h3 className="text-sm font-bold text-gray-900 mb-2">Ready to submit?</h3>
               <p className="text-xs text-gray-500 mb-4">Ensure all 4 sections are completed before submitting.</p>
-              
+
               {reportMsg.text && (
                 <div className={`mb-4 p-2 rounded text-xs text-left ${reportMsg.type === 'error' ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-green-50 text-green-700 border border-green-200'}`}>
                   {reportMsg.text}
                 </div>
               )}
-              
+
               <button
                 onClick={handleSubmitReport}
                 disabled={submittingReport}
@@ -334,7 +290,7 @@ export default function MonthlyReports() {
 
         {/* Content Area */}
         <div className="flex-1 bg-white rounded-xl shadow-sm border border-gray-200 min-h-[500px]">
-          
+
           {/* ================= TAB: FORM A ================= */}
           {activeTab === 'formA' && (
             <div className="p-6 md:p-8 space-y-8 animate-in fade-in zoom-in-95 duration-300">
@@ -344,11 +300,11 @@ export default function MonthlyReports() {
                   <div className="space-y-4">
                     <div>
                       <label className="block text-xs text-gray-500 mb-1">Average Number of Ring Spindles</label>
-                      <input type="number" value={formA.worked_spindles || ''} onChange={e => setFormA({...formA, worked_spindles: parseInt(e.target.value)||0})} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
+                      <input type="number" value={formA.worked_spindles || ''} onChange={e => setFormA({ ...formA, worked_spindles: parseInt(e.target.value) || 0 })} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
                     </div>
                     <div>
                       <label className="block text-xs text-gray-500 mb-1">Average Number of Rotors</label>
-                      <input type="number" value={formA.worked_rotors || ''} onChange={e => setFormA({...formA, worked_rotors: parseInt(e.target.value)||0})} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
+                      <input type="number" value={formA.worked_rotors || ''} onChange={e => setFormA({ ...formA, worked_rotors: parseInt(e.target.value) || 0 })} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
                     </div>
                   </div>
                 </div>
@@ -359,7 +315,7 @@ export default function MonthlyReports() {
                     <div className="flex gap-4">
                       <div className="flex-1">
                         <label className="block text-xs text-gray-500 mb-1">Pressed (kg)</label>
-                        <input type="number" value={formA.pressed_cotton_kg || ''} onChange={e => setFormA({...formA, pressed_cotton_kg: parseFloat(e.target.value)||0})} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
+                        <input type="number" value={formA.pressed_cotton_kg || ''} onChange={e => setFormA({ ...formA, pressed_cotton_kg: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
                       </div>
                       <div className="flex-1">
                         <label className="block text-xs text-gray-500 mb-1">Bales (170kg)</label>
@@ -369,7 +325,7 @@ export default function MonthlyReports() {
                     <div className="flex gap-4">
                       <div className="flex-1">
                         <label className="block text-xs text-gray-500 mb-1">Un-pressed (kg)</label>
-                        <input type="number" value={formA.unpressed_cotton_kg || ''} onChange={e => setFormA({...formA, unpressed_cotton_kg: parseFloat(e.target.value)||0})} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
+                        <input type="number" value={formA.unpressed_cotton_kg || ''} onChange={e => setFormA({ ...formA, unpressed_cotton_kg: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
                       </div>
                       <div className="flex-1">
                         <label className="block text-xs text-gray-500 mb-1">Bales (170kg)</label>
@@ -393,11 +349,11 @@ export default function MonthlyReports() {
                   </div>
                   <div className="col-span-2 md:col-span-1">
                     <label className="block text-xs font-medium text-green-800 mb-1">Cess Rs. / Bale</label>
-                    <input type="number" value={formA.cess_per_bale || ''} onChange={e => setFormA({...formA, cess_per_bale: parseFloat(e.target.value)||0})} className="w-full px-3 py-1.5 border border-green-300 rounded shadow-sm text-sm" />
+                    <input type="number" value={formA.cess_per_bale || ''} onChange={e => setFormA({ ...formA, cess_per_bale: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-1.5 border border-green-300 rounded shadow-sm text-sm" />
                   </div>
                   <div className="col-span-2 md:col-span-2 text-right bg-white p-3 rounded-lg shadow-sm border border-green-100">
                     <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">Total Cess Amount</label>
-                    <div className="text-2xl font-black text-green-600">Rs. {totalCess.toLocaleString(undefined, {minimumFractionDigits: 2})}</div>
+                    <div className="text-2xl font-black text-green-600">Rs. {totalCess.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
                   </div>
                 </div>
               </div>
@@ -407,23 +363,23 @@ export default function MonthlyReports() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="col-span-1 md:col-span-2">
                     <label className="block text-xs text-gray-500 mb-1">Amount Remitted Herewith (Rs.)</label>
-                    <input type="number" value={formA.remitted_amount || ''} onChange={e => setFormA({...formA, remitted_amount: parseFloat(e.target.value)||0})} className="w-full md:w-1/2 px-3 py-2 border border-gray-300 rounded-md text-sm" />
+                    <input type="number" value={formA.remitted_amount || ''} onChange={e => setFormA({ ...formA, remitted_amount: parseFloat(e.target.value) || 0 })} className="w-full md:w-1/2 px-3 py-2 border border-gray-300 rounded-md text-sm" />
                   </div>
                   <div>
                     <label className="block text-xs text-gray-500 mb-1">Cheque Details</label>
-                    <input type="text" placeholder="Cheque No, Date, Bank" value={formA.cheque_details} onChange={e => setFormA({...formA, cheque_details: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
+                    <input type="text" placeholder="Cheque No, Date, Bank" value={formA.cheque_details} onChange={e => setFormA({ ...formA, cheque_details: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
                   </div>
                   <div>
                     <label className="block text-xs text-gray-500 mb-1">Draft Details</label>
-                    <input type="text" placeholder="Draft No, Date, Bank" value={formA.draft_details} onChange={e => setFormA({...formA, draft_details: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
+                    <input type="text" placeholder="Draft No, Date, Bank" value={formA.draft_details} onChange={e => setFormA({ ...formA, draft_details: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
                   </div>
                   <div>
                     <label className="block text-xs text-gray-500 mb-1">Money Order Details</label>
-                    <input type="text" placeholder="MO No, Date" value={formA.money_order_details} onChange={e => setFormA({...formA, money_order_details: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
+                    <input type="text" placeholder="MO No, Date" value={formA.money_order_details} onChange={e => setFormA({ ...formA, money_order_details: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
                   </div>
                   <div>
                     <label className="block text-xs text-gray-500 mb-1">Cash/Transfer Details</label>
-                    <input type="text" placeholder="Receipt No, Date" value={formA.cash_details} onChange={e => setFormA({...formA, cash_details: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
+                    <input type="text" placeholder="Receipt No, Date" value={formA.cash_details} onChange={e => setFormA({ ...formA, cash_details: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
                   </div>
                 </div>
               </div>
@@ -436,11 +392,11 @@ export default function MonthlyReports() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Working Days</label>
-                  <input type="number" value={genInfo.working_days || ''} onChange={e => setGenInfo({...genInfo, working_days: parseInt(e.target.value)||0})} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
+                  <input type="number" value={genInfo.working_days || ''} onChange={e => setGenInfo({ ...genInfo, working_days: parseInt(e.target.value) || 0 })} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">No. of Shifts</label>
-                  <input type="number" value={genInfo.shifts || ''} onChange={e => setGenInfo({...genInfo, shifts: parseFloat(e.target.value)||0})} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
+                  <input type="number" value={genInfo.shifts || ''} onChange={e => setGenInfo({ ...genInfo, shifts: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
                 </div>
               </div>
 
@@ -471,27 +427,27 @@ export default function MonthlyReports() {
             <div className="p-6 md:p-8 animate-in fade-in zoom-in-95 duration-300">
               <div className="max-w-2xl bg-gray-50 p-6 rounded-xl border border-gray-200 space-y-6">
                 <h3 className="text-sm font-bold text-gray-900 border-b border-gray-200 pb-2">Status of Cotton Cess</h3>
-                
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <label className="block text-xs text-gray-500 mb-1">Last payment made (in Rs.)</label>
-                    <input type="number" value={cessStatus.last_payment_amount || ''} onChange={e => setCessStatus({...cessStatus, last_payment_amount: parseFloat(e.target.value)||0})} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
+                    <input type="number" value={cessStatus.last_payment_amount || ''} onChange={e => setCessStatus({ ...cessStatus, last_payment_amount: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
                   </div>
                   <div>
                     <label className="block text-xs text-gray-500 mb-1">Last payment Date</label>
-                    <input type="date" value={cessStatus.last_payment_date} onChange={e => setCessStatus({...cessStatus, last_payment_date: e.target.value})} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-700" />
+                    <input type="date" value={cessStatus.last_payment_date} onChange={e => setCessStatus({ ...cessStatus, last_payment_date: e.target.value })} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm text-gray-700" />
                   </div>
                   <div>
                     <label className="block text-xs text-gray-500 mb-1">Amount Due (Rs.)</label>
-                    <input type="number" value={cessStatus.amount_due || ''} onChange={e => setCessStatus({...cessStatus, amount_due: parseFloat(e.target.value)||0})} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
+                    <input type="number" value={cessStatus.amount_due || ''} onChange={e => setCessStatus({ ...cessStatus, amount_due: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
                   </div>
                   <div>
                     <label className="block text-xs text-gray-500 mb-1">Outstanding Cess (if any) Rs.</label>
-                    <input type="number" value={cessStatus.outstanding_cess || ''} onChange={e => setCessStatus({...cessStatus, outstanding_cess: parseFloat(e.target.value)||0})} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
+                    <input type="number" value={cessStatus.outstanding_cess || ''} onChange={e => setCessStatus({ ...cessStatus, outstanding_cess: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
                   </div>
                   <div>
                     <label className="block text-xs text-gray-500 mb-1">Cess paid in reporting month Rs.</label>
-                    <input type="number" value={cessStatus.cess_paid_this_month || ''} onChange={e => setCessStatus({...cessStatus, cess_paid_this_month: parseFloat(e.target.value)||0})} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
+                    <input type="number" value={cessStatus.cess_paid_this_month || ''} onChange={e => setCessStatus({ ...cessStatus, cess_paid_this_month: parseFloat(e.target.value) || 0 })} className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm" />
                   </div>
                 </div>
               </div>
@@ -510,7 +466,7 @@ export default function MonthlyReports() {
                   </button>
                 )}
               </div>
-              
+
               {loadingReports ? (
                 <div className="text-center py-12 text-gray-500">Loading reports...</div>
               ) : reports.length === 0 ? (
@@ -533,7 +489,7 @@ export default function MonthlyReports() {
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
                       {reports.map((r, idx) => {
-                        const tBales = (r.pressed_cotton_kg/170) + (r.unpressed_cotton_kg/170);
+                        const tBales = (r.pressed_cotton_kg / 170) + (r.unpressed_cotton_kg / 170);
                         return (
                           <tr key={idx} className="hover:bg-gray-50">
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{r.reporting_month}</td>
@@ -568,7 +524,7 @@ export default function MonthlyReports() {
       {viewingReport && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
-            
+
             <div className="flex items-center justify-between p-6 border-b border-gray-100">
               <div>
                 <h3 className="text-xl font-bold text-gray-900">Monthly Return: {viewingReport.reporting_month}</h3>
@@ -578,9 +534,9 @@ export default function MonthlyReports() {
                 <X className="h-6 w-6" />
               </button>
             </div>
-            
+
             <div className="p-6 overflow-y-auto space-y-8 bg-gray-50">
-              
+
               {/* Capacity & Consumed */}
               <div className="bg-white p-5 rounded-lg border border-gray-200 shadow-sm">
                 <h4 className="text-sm font-bold text-gray-900 border-b pb-2 mb-4">Capacity & Cotton Consumed (Form A)</h4>
@@ -596,7 +552,7 @@ export default function MonthlyReports() {
               <div className="bg-green-50 p-5 rounded-lg border border-green-200">
                 <h4 className="text-sm font-bold text-green-900 border-b border-green-200 pb-2 mb-4">Cess Calculation</h4>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                  <div><span className="text-green-800 block text-xs">Total Bales</span><span className="font-bold">{((viewingReport.pressed_cotton_kg + viewingReport.unpressed_cotton_kg)/170).toFixed(2)}</span></div>
+                  <div><span className="text-green-800 block text-xs">Total Bales</span><span className="font-bold">{((viewingReport.pressed_cotton_kg + viewingReport.unpressed_cotton_kg) / 170).toFixed(2)}</span></div>
                   <div><span className="text-green-800 block text-xs">Cess / Bale</span><span className="font-bold">Rs. {viewingReport.cess_per_bale}</span></div>
                   <div className="col-span-2 text-right"><span className="text-green-800 block text-xs">Remitted Amount</span><span className="font-black text-lg text-green-700">Rs. {viewingReport.remitted_amount.toLocaleString()}</span></div>
                 </div>
@@ -609,7 +565,7 @@ export default function MonthlyReports() {
                   <div><span className="text-gray-500 block text-xs">Working Days</span><span className="font-medium">{viewingReport.working_days}</span></div>
                   <div><span className="text-gray-500 block text-xs">Shifts</span><span className="font-medium">{viewingReport.shifts}</span></div>
                 </div>
-                
+
                 {['yarn_cotton', 'yarn_blended', 'yarn_synthetic'].map(yKey => {
                   if (!viewingReport[yKey] || viewingReport[yKey].length === 0) return null;
                   return (
@@ -618,7 +574,7 @@ export default function MonthlyReports() {
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
                         {viewingReport[yKey].map((y: any, idx: number) => (
                           <div key={idx} className="bg-gray-50 p-2 rounded border border-gray-200 text-xs">
-                            <span className="text-gray-500">Count:</span> <span className="font-medium">{y.count}</span> <br/>
+                            <span className="text-gray-500">Count:</span> <span className="font-medium">{y.count}</span> <br />
                             <span className="text-gray-500">Qty:</span> <span className="font-medium">{y.quantity} kg</span>
                           </div>
                         ))}
