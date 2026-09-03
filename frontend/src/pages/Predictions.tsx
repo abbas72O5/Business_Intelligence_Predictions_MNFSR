@@ -40,6 +40,13 @@ interface CanvasItem {
 
 export default function Predictions() {
   const { token, user } = useAuth();
+
+  const canVisualBin = user?.role === 'superadmin' || user?.role === 'user' || (user?.role === 'admin' && (user?.privileges?.module_permissions?.['Predictions']?.visual_bin ?? true));
+  const canExport = user?.role === 'superadmin' || user?.role === 'user' || (user?.role === 'admin' && (user?.privileges?.module_permissions?.['Predictions']?.export ?? true));
+  const canSave = user?.role === 'superadmin' || user?.role === 'user' || (user?.role === 'admin' && (user?.privileges?.module_permissions?.['Predictions']?.save ?? true));
+  const canLoad = user?.role === 'superadmin' || user?.role === 'user' || (user?.role === 'admin' && (user?.privileges?.module_permissions?.['Predictions']?.load ?? true));
+  const canNewDashboard = user?.role === 'superadmin' || user?.role === 'user' || (user?.role === 'admin' && (user?.privileges?.module_permissions?.['Predictions']?.new_dashboard ?? true));
+
   const loadState = (key: string, defaultVal: any) => {
     const userId = user?.id || 'guest';
     try {
@@ -293,6 +300,10 @@ export default function Predictions() {
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
+    if (!canVisualBin) {
+      showToast("Permission Denied: You do not have permission to add visuals to the prediction workspace.", "error");
+      return;
+    }
     const chartDataString = e.dataTransfer.getData('chartData');
     if (chartDataString) {
       try {
@@ -623,18 +634,43 @@ export default function Predictions() {
           <div className="flex items-center space-x-2">
             <button 
               onClick={() => setShowNewDashboardModal(true)} 
-              className="flex items-center px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50"
+              disabled={!canNewDashboard}
+              title={!canNewDashboard ? "Permission denied" : ""}
+              className={`flex items-center px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm text-sm font-medium transition-colors ${
+                !canNewDashboard ? 'opacity-50 cursor-not-allowed text-gray-400' : 'text-gray-700 hover:bg-gray-50'
+              }`}
             >
-              <PlusCircle className="w-4 h-4 mr-2 text-indigo-500" /> New
+              <PlusCircle className={`w-4 h-4 mr-2 ${!canNewDashboard ? 'text-gray-400' : 'text-indigo-500'}`} /> New
             </button>
-            <button onClick={openLoadModal} className="flex items-center px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50">
-              <FolderOpen className="w-4 h-4 mr-2 text-blue-500" /> Load
+            <button 
+              onClick={openLoadModal} 
+              disabled={!canLoad}
+              title={!canLoad ? "Permission denied" : ""}
+              className={`flex items-center px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm text-sm font-medium transition-colors ${
+                !canLoad ? 'opacity-50 cursor-not-allowed text-gray-400' : 'text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <FolderOpen className={`w-4 h-4 mr-2 ${!canLoad ? 'text-gray-400' : 'text-blue-500'}`} /> Load
             </button>
-            <button onClick={() => activeDashboard ? saveDashboard() : setShowSaveModal(true)} className="flex items-center px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50">
-              <Save className="w-4 h-4 mr-2 text-green-500" /> {activeDashboard ? 'Save' : 'Save As'}
+            <button 
+              onClick={() => activeDashboard ? saveDashboard() : setShowSaveModal(true)} 
+              disabled={!canSave}
+              title={!canSave ? "Permission denied" : ""}
+              className={`flex items-center px-3 py-2 bg-white border border-gray-300 rounded-md shadow-sm text-sm font-medium transition-colors ${
+                !canSave ? 'opacity-50 cursor-not-allowed text-gray-400' : 'text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              <Save className={`w-4 h-4 mr-2 ${!canSave ? 'text-gray-400' : 'text-green-500'}`} /> {activeDashboard ? 'Save' : 'Save As'}
             </button>
             <div className="relative">
-              <button onClick={() => setShowExportMenu(!showExportMenu)} className="flex items-center px-3 py-2 bg-green-700 text-white rounded-md shadow-sm text-sm font-medium hover:bg-green-800">
+              <button 
+                onClick={() => showExportMenu ? setShowExportMenu(false) : canExport && setShowExportMenu(true)} 
+                disabled={!canExport}
+                title={!canExport ? "Permission denied" : ""}
+                className={`flex items-center px-3 py-2 rounded-md shadow-sm text-sm font-medium transition-colors ${
+                  !canExport ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-green-700 text-white hover:bg-green-800'
+                }`}
+              >
                 <Download className="w-4 h-4 mr-2" /> Export
               </button>
               {showExportMenu && (
@@ -913,9 +949,10 @@ export default function Predictions() {
                 sidebarCharts.map(chart => (
                   <div
                     key={chart.id}
-                    draggable
+                    draggable={canVisualBin}
                     onDragStart={(e) => handleDragStart(e, chart)}
-                    className="bg-white border border-gray-200 rounded-lg p-3 shadow-sm hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing flex flex-col"
+                    className={`bg-white border border-gray-200 rounded-lg p-3 transition-shadow flex flex-col ${canVisualBin ? 'shadow-sm hover:shadow-md cursor-grab active:cursor-grabbing' : 'opacity-70 cursor-not-allowed'}`}
+                    title={!canVisualBin ? "Permission denied" : ""}
                   >
                     <div className="flex items-center text-gray-700 font-medium text-sm mb-2 truncate">
                       <GripVertical className="w-4 h-4 mr-1 text-gray-400 flex-shrink-0" />

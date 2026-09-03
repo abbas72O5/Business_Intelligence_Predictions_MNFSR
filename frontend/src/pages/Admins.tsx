@@ -37,14 +37,11 @@ export default function Admins() {
   const ALL_MODULES = [
     'Overview',
     'Profile',
-    'Monthly Reports',
     'Data Uploading',
     'Data Selection',
     'Observations',
     'Predictions',
-    'Users',
-    'Data Management',
-    'Audit Logs'
+    'Data Management'
   ];
 
   const fetchAdmins = async () => {
@@ -592,6 +589,27 @@ export default function Admins() {
                           <div className="pt-4 flex justify-end">
                             <button
                               onClick={() => saveModulePrivileges(selectedAdmin.id, selectedAdmin.privileges, 'Observations')}
+                              className="bg-purple-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-purple-700 shadow-sm transition-colors"
+                            >
+                              Update Privileges
+                            </button>
+                          </div>
+                        </div>
+                      ) : selectedModule === 'Predictions' ? (
+                        <div className="space-y-4">
+                          <h5 className="text-sm font-bold text-gray-900 border-b pb-2">Permissions</h5>
+                          
+                          <div className="grid grid-cols-2 gap-2">
+                            {renderCheckbox('Predictions', 'visual_bin', 'Visual Bin')}
+                            {renderCheckbox('Predictions', 'export', 'Export')}
+                            {renderCheckbox('Predictions', 'save', 'Save')}
+                            {renderCheckbox('Predictions', 'load', 'Load')}
+                            {renderCheckbox('Predictions', 'new_dashboard', 'New Dashboard')}
+                          </div>
+
+                          <div className="pt-4 flex justify-end">
+                            <button
+                              onClick={() => saveModulePrivileges(selectedAdmin.id, selectedAdmin.privileges, 'Predictions')}
                               className="bg-purple-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-purple-700 shadow-sm transition-colors"
                             >
                               Update Privileges
