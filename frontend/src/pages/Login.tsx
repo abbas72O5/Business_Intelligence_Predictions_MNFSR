@@ -19,7 +19,15 @@ export default function Login() {
         email,
         password,
       });
-      login(response.data.access_token);
+      const newToken = response.data.access_token;
+      
+      // Log activity
+      axios.post('http://localhost:8000/activities', {
+        action: 'User Sign-in',
+        details: { email }
+      }, { headers: { Authorization: `Bearer ${newToken}` } }).catch(e => console.error(e));
+
+      login(newToken);
       navigate('/dashboard');
     } catch (err: any) {
       setError(err.response?.data?.detail || 'An error occurred during login.');

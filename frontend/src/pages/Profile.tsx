@@ -30,6 +30,13 @@ export default function Profile() {
       await axios.put('http://localhost:8000/auth/me/password', passwordForm, {
         headers: { Authorization: `Bearer ${token}` }
       });
+      
+      // Log activity
+      axios.post('http://localhost:8000/activities', {
+        action: 'Update Password',
+        details: {}
+      }, { headers: { Authorization: `Bearer ${token}` } }).catch(e => console.error(e));
+
       setPasswordMsg({ type: 'success', text: 'Password updated successfully.' });
       setPasswordForm({ old_password: '', new_password: '' });
     } catch (err: any) {
@@ -73,6 +80,13 @@ export default function Profile() {
         });
         setMillProfile(res.data);
       }
+      
+      // Log activity
+      axios.post('http://localhost:8000/activities', {
+        action: 'Update Profile',
+        details: { mill_name: millProfile.name }
+      }, { headers: { Authorization: `Bearer ${token}` } }).catch(e => console.error(e));
+
       setProfileMsg({ type: 'success', text: 'Profile saved successfully.' });
     } catch (err) {
       setProfileMsg({ type: 'error', text: 'Failed to save profile.' });
