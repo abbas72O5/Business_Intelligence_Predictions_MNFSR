@@ -223,6 +223,33 @@ export default function Admins() {
     }
   };
 
+  const renderCheckbox = (moduleName: string, permKey: string, labelText: string) => {
+    if (!selectedAdmin) return null;
+    return (
+      <label key={permKey} className="flex items-center space-x-3 cursor-pointer p-2 hover:bg-gray-50 rounded-md transition-colors">
+        <input
+          type="checkbox"
+          className="rounded border-gray-300 text-purple-600 focus:ring-purple-500 h-4 w-4"
+          checked={
+            pendingModulePermissions[moduleName]?.[permKey] !== undefined
+              ? pendingModulePermissions[moduleName][permKey]
+              : (selectedAdmin.privileges?.module_permissions?.[moduleName]?.[permKey] ?? true)
+          }
+          onChange={(e) => {
+            setPendingModulePermissions(prev => ({
+              ...prev,
+              [moduleName]: {
+                ...(prev[moduleName] || {}),
+                [permKey]: e.target.checked
+              }
+            }));
+          }}
+        />
+        <span className="text-sm font-medium text-gray-700">{labelText}</span>
+      </label>
+    );
+  };
+
   if (currentUser?.role !== 'superadmin') {
     return (
       <div className="flex flex-col items-center justify-center h-96 text-gray-500">
@@ -515,53 +542,35 @@ export default function Admins() {
                         <div className="space-y-4">
                           <h5 className="text-sm font-bold text-gray-900 border-b pb-2">Permissions</h5>
 
-                          <label className="flex items-center space-x-3 cursor-pointer p-2 hover:bg-gray-50 rounded-md transition-colors">
-                            <input
-                              type="checkbox"
-                              className="rounded border-gray-300 text-purple-600 focus:ring-purple-500 h-4 w-4"
-                              checked={
-                                pendingModulePermissions['Data Uploading']?.['can_upload_data'] !== undefined
-                                  ? pendingModulePermissions['Data Uploading']['can_upload_data']
-                                  : (selectedAdmin.privileges?.module_permissions?.['Data Uploading']?.['can_upload_data'] ?? true)
-                              }
-                              onChange={(e) => {
-                                setPendingModulePermissions(prev => ({
-                                  ...prev,
-                                  'Data Uploading': {
-                                    ...(prev['Data Uploading'] || {}),
-                                    can_upload_data: e.target.checked
-                                  }
-                                }));
-                              }}
-                            />
-                            <span className="text-sm font-medium text-gray-700">Can Upload Data</span>
-                          </label>
-
-                          <label className="flex items-center space-x-3 cursor-pointer p-2 hover:bg-gray-50 rounded-md transition-colors">
-                            <input
-                              type="checkbox"
-                              className="rounded border-gray-300 text-purple-600 focus:ring-purple-500 h-4 w-4"
-                              checked={
-                                pendingModulePermissions['Data Uploading']?.['can_preview_data'] !== undefined
-                                  ? pendingModulePermissions['Data Uploading']['can_preview_data']
-                                  : (selectedAdmin.privileges?.module_permissions?.['Data Uploading']?.['can_preview_data'] ?? true)
-                              }
-                              onChange={(e) => {
-                                setPendingModulePermissions(prev => ({
-                                  ...prev,
-                                  'Data Uploading': {
-                                    ...(prev['Data Uploading'] || {}),
-                                    can_preview_data: e.target.checked
-                                  }
-                                }));
-                              }}
-                            />
-                            <span className="text-sm font-medium text-gray-700">Can Preview Data</span>
-                          </label>
+                          {renderCheckbox('Data Uploading', 'can_upload_data', 'Upload Data')}
+                          {renderCheckbox('Data Uploading', 'can_preview_data', 'Preview Data')}
 
                           <div className="pt-4 flex justify-end">
                             <button
                               onClick={() => saveModulePrivileges(selectedAdmin.id, selectedAdmin.privileges, 'Data Uploading')}
+                              className="bg-purple-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-purple-700 shadow-sm transition-colors"
+                            >
+                              Update Privileges
+                            </button>
+                          </div>
+                        </div>
+                      ) : selectedModule === 'Data Selection' ? (
+                        <div className="space-y-4">
+                          <h5 className="text-sm font-bold text-gray-900 border-b pb-2">Permissions</h5>
+                          
+                          <div className="grid grid-cols-2 gap-2">
+                            {renderCheckbox('Data Selection', 'modify_canvas', 'Allow Canvas Modification')}
+                            {renderCheckbox('Data Selection', 'create_relationships', 'Create Relationships')}
+                            {renderCheckbox('Data Selection', 'save_models', 'Save Models')}
+                            {renderCheckbox('Data Selection', 'load_models', 'Load Models')}
+                            {renderCheckbox('Data Selection', 'generate_tables', 'Generate Tables')}
+                            {renderCheckbox('Data Selection', 'preview_data', 'Preview Data')}
+                            {renderCheckbox('Data Selection', 'create_new_models', 'Create New Models')}
+                          </div>
+
+                          <div className="pt-4 flex justify-end">
+                            <button
+                              onClick={() => saveModulePrivileges(selectedAdmin.id, selectedAdmin.privileges, 'Data Selection')}
                               className="bg-purple-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-purple-700 shadow-sm transition-colors"
                             >
                               Update Privileges

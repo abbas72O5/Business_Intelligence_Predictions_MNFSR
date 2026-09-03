@@ -21,7 +21,7 @@ const nodeTypes = {
 
 // We wrap the actual component in ReactFlowProvider so we can use useReactFlow hooks if needed later
 function DataSelectionCanvas() {
-  const { token, user } = useAuth();
+  const { token, user: currentUser } = useAuth();
   const [files, setFiles] = useState<TableMetadata[]>([]);
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
 
@@ -49,6 +49,14 @@ function DataSelectionCanvas() {
   const [selectedEdge, setSelectedEdge] = useState<Edge | null>(null);
   const [confirmAction, setConfirmAction] = useState<{ title: string, message: string, onConfirm: () => void } | null>(null);
   const [errorPopup, setErrorPopup] = useState<{ title: string, message: string } | null>(null);
+
+  const canCreateRelationships = currentUser?.role === 'superadmin' || currentUser?.role === 'user' || (currentUser?.role === 'admin' && (currentUser?.privileges?.module_permissions?.['Data Selection']?.create_relationships ?? true));
+  const canSaveModels = currentUser?.role === 'superadmin' || currentUser?.role === 'user' || (currentUser?.role === 'admin' && (currentUser?.privileges?.module_permissions?.['Data Selection']?.save_models ?? true));
+  const canLoadModels = currentUser?.role === 'superadmin' || currentUser?.role === 'user' || (currentUser?.role === 'admin' && (currentUser?.privileges?.module_permissions?.['Data Selection']?.load_models ?? true));
+  const canGenerateTables = currentUser?.role === 'superadmin' || currentUser?.role === 'user' || (currentUser?.role === 'admin' && (currentUser?.privileges?.module_permissions?.['Data Selection']?.generate_tables ?? true));
+  const canPreviewData = currentUser?.role === 'superadmin' || currentUser?.role === 'user' || (currentUser?.role === 'admin' && (currentUser?.privileges?.module_permissions?.['Data Selection']?.preview_data ?? true));
+  const canCreateNewModels = currentUser?.role === 'superadmin' || currentUser?.role === 'user' || (currentUser?.role === 'admin' && (currentUser?.privileges?.module_permissions?.['Data Selection']?.create_new_models ?? true));
+  const canModifyCanvas = currentUser?.role === 'superadmin' || currentUser?.role === 'user' || (currentUser?.role === 'admin' && (currentUser?.privileges?.module_permissions?.['Data Selection']?.modify_canvas ?? true));
 
   const fetchFiles = useCallback(() => {
     axios.get('http://localhost:8000/files/', {
@@ -179,7 +187,7 @@ function DataSelectionCanvas() {
   // Restore and Persist State
   useEffect(() => {
     try {
-      const userId = user?.id || 'guest';
+      const userId = currentUser?.id || 'guest';
       const savedNodes = localStorage.getItem(`${userId}_dataSelectionNodes`);
       if (savedNodes) {
         const parsedNodes = JSON.parse(savedNodes).map((n: any) => ({
@@ -222,31 +230,31 @@ function DataSelectionCanvas() {
           selectedColumnsArray: Array.from(n.data.selectedColumns || [])
         }
       }));
-      const userId = user?.id || 'guest';
+      const userId = currentUser?.id || 'guest';
       localStorage.setItem(`${userId}_dataSelectionNodes`, JSON.stringify(serializableNodes));
     } else {
-      const userId = user?.id || 'guest';
+      const userId = currentUser?.id || 'guest';
       localStorage.removeItem(`${userId}_dataSelectionNodes`);
     }
-  }, [nodes, user?.id]);
+  }, [nodes, currentUser?.id]);
 
   useEffect(() => {
-    const userId = user?.id || 'guest';
+    const userId = currentUser?.id || 'guest';
     if (edges.length > 0) {
       localStorage.setItem(`${userId}_dataSelectionEdges`, JSON.stringify(edges));
     } else {
       localStorage.removeItem(`${userId}_dataSelectionEdges`);
     }
-  }, [edges, user?.id]);
+  }, [edges, currentUser?.id]);
 
   useEffect(() => {
-    const userId = user?.id || 'guest';
+    const userId = currentUser?.id || 'guest';
     if (selectedColumns.size > 0) {
       localStorage.setItem(`${userId}_dataSelectionColumns`, JSON.stringify(Array.from(selectedColumns.entries())));
     } else {
       localStorage.removeItem(`${userId}_dataSelectionColumns`);
     }
-  }, [selectedColumns, user?.id]);
+  }, [selectedColumns, currentUser?.id]);
 
   const handleAliasChange = (key: string, newAlias: string) => {
     setSelectedColumns((prev) => {
@@ -260,6 +268,14 @@ function DataSelectionCanvas() {
   };
 
   const onConnect = useCallback(async (params: Connection | Edge) => {
+    if (!canCreateRelationships) {
+      setErrorPopup({
+        title: "Permission Denied",
+        message: "You do not have permission to create relationships between tables."
+      });
+      return;
+    }
+
     const sourceNode = nodes.find(n => n.id === params.source);
     const targetNode = nodes.find(n => n.id === params.target);
 
@@ -314,12 +330,13 @@ function DataSelectionCanvas() {
         console.error("Failed to save relationship", err);
       }
     }
-  }, [setEdges, nodes, token]);
+  }, [setEdges, nodes, token, canCreateRelationships]);
 
   const onNodeContextMenu = useCallback((event: React.MouseEvent, node: any) => {
     event.preventDefault();
+    if (!canModifyCanvas) return;
     setNodeContextMenu({ id: node.id, top: event.clientY, left: event.clientX });
-  }, []);
+  }, [canModifyCanvas]);
 
   const closeNodeContextMenu = () => setNodeContextMenu(null);
 
@@ -432,6 +449,14 @@ function DataSelectionCanvas() {
   const onDrop = useCallback(
     (event: React.DragEvent) => {
       event.preventDefault();
+      
+      if (!canModifyCanvas) {
+        setErrorPopup({
+          title: "Permission Denied",
+          message: "You do not have permission to drag new tables onto the canvas."
+        });
+        return;
+      }
 
       const reactFlowBounds = reactFlowWrapper.current?.getBoundingClientRect();
       const fileDataStr = event.dataTransfer.getData('application/reactflow');
@@ -682,7 +707,7 @@ function DataSelectionCanvas() {
 
     // 4. Reconstruct edges
     const newEdges: any[] = [];
-    model.joins.forEach((join: any, index: number) => {
+    model.joins.forEach((join: any) => {
       const sourceNodeId = nodeIdMap.get(join.source_table_id);
       const targetNodeId = nodeIdMap.get(join.target_table_id);
       if (sourceNodeId && targetNodeId) {
@@ -762,7 +787,7 @@ function DataSelectionCanvas() {
         setNodes([]);
         setEdges([]);
         setSelectedColumns(new Map());
-        const userId = user?.id || 'guest';
+        const userId = currentUser?.id || 'guest';
         localStorage.removeItem(`${userId}_dataSelectionNodes`);
         localStorage.removeItem(`${userId}_dataSelectionEdges`);
         localStorage.removeItem(`${userId}_dataSelectionColumns`);
@@ -782,9 +807,13 @@ function DataSelectionCanvas() {
         <div className="flex items-center space-x-2">
           <button
             onClick={() => setShowNewModelModal(true)}
-            className="flex items-center bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-3 py-2 rounded-md font-medium text-sm shadow-sm transition-colors whitespace-nowrap"
+            disabled={!canCreateNewModels}
+            className={`flex items-center bg-white border border-gray-300 px-3 py-2 rounded-md font-medium text-sm shadow-sm transition-colors whitespace-nowrap ${
+              !canCreateNewModels ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50 text-gray-700'
+            }`}
+            title={!canCreateNewModels ? "You don't have permission to create new models" : ""}
           >
-            <PlusCircle className="h-4 w-4 mr-2 text-indigo-500" />
+            <PlusCircle className={`h-4 w-4 mr-2 ${!canCreateNewModels ? 'text-gray-400' : 'text-indigo-500'}`} />
             New
           </button>
           <button
@@ -796,31 +825,44 @@ function DataSelectionCanvas() {
           </button>
           <button
             onClick={handlePreview}
-            className="flex items-center bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md font-medium text-sm shadow-sm transition-colors border border-gray-300 disabled:opacity-50 whitespace-nowrap"
-            disabled={selectedColumns.size === 0}
+            className={`flex items-center bg-gray-100 text-gray-700 px-3 py-2 rounded-md font-medium text-sm shadow-sm transition-colors border border-gray-300 whitespace-nowrap ${
+              selectedColumns.size === 0 || !canPreviewData ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-200'
+            }`}
+            disabled={selectedColumns.size === 0 || !canPreviewData}
+            title={!canPreviewData ? "You don't have permission to preview data" : ""}
           >
             <PlayCircle className="h-4 w-4 mr-2" />
             Preview
           </button>
           <button
             onClick={fetchSavedModels}
-            className="flex items-center bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-md font-medium text-sm shadow-sm transition-colors disabled:opacity-50 whitespace-nowrap"
+            className={`flex items-center bg-indigo-600 text-white px-3 py-2 rounded-md font-medium text-sm shadow-sm transition-colors whitespace-nowrap ${
+              !canLoadModels ? 'opacity-50 cursor-not-allowed' : 'hover:bg-indigo-700'
+            }`}
+            disabled={!canLoadModels}
+            title={!canLoadModels ? "You don't have permission to load models" : ""}
           >
             <ListTree className="h-4 w-4 mr-2" />
             Load Model
           </button>
           <button
             onClick={() => activeModel ? handleSaveModel() : setIsSaveModelModalOpen(true)}
-            className="flex items-center bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-md font-medium text-sm shadow-sm transition-colors disabled:opacity-50 whitespace-nowrap"
-            disabled={selectedColumns.size === 0 && !activeModel}
+            className={`flex items-center bg-blue-600 text-white px-3 py-2 rounded-md font-medium text-sm shadow-sm transition-colors whitespace-nowrap ${
+              (selectedColumns.size === 0 && !activeModel) || !canSaveModels ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700'
+            }`}
+            disabled={(selectedColumns.size === 0 && !activeModel) || !canSaveModels}
+            title={!canSaveModels ? "You don't have permission to save models" : ""}
           >
             <Database className="h-4 w-4 mr-2" />
             {activeModel ? 'Save' : 'Save As'}
           </button>
           <button
             onClick={() => setIsGenerateModalOpen(true)}
-            className="flex items-center bg-green-600 hover:bg-green-700 text-white px-3 py-2 rounded-md font-medium text-sm shadow-sm transition-colors disabled:opacity-50 whitespace-nowrap"
-            disabled={selectedColumns.size === 0}
+            className={`flex items-center bg-green-600 text-white px-3 py-2 rounded-md font-medium text-sm shadow-sm transition-colors whitespace-nowrap ${
+              selectedColumns.size === 0 || !canGenerateTables ? 'opacity-50 cursor-not-allowed' : 'hover:bg-green-700'
+            }`}
+            disabled={selectedColumns.size === 0 || !canGenerateTables}
+            title={!canGenerateTables ? "You don't have permission to generate tables" : ""}
           >
             <PlusCircle className="h-4 w-4 mr-2" />
             Generate Table
@@ -846,9 +888,10 @@ function DataSelectionCanvas() {
               files.map(f => (
                 <div
                   key={f.table_id}
-                  draggable
+                  draggable={canModifyCanvas}
                   onDragStart={(e) => onDragStart(e, f)}
-                  className="bg-white border border-gray-200 rounded-md p-3 cursor-grab active:cursor-grabbing hover:border-green-400 hover:shadow-sm transition-all group relative"
+                  className={`bg-white border border-gray-200 rounded-md p-3 transition-all group relative ${canModifyCanvas ? 'cursor-grab active:cursor-grabbing hover:border-green-400 hover:shadow-sm' : 'opacity-70 cursor-not-allowed'}`}
+                  title={!canModifyCanvas ? "You don't have permission to modify the canvas" : ""}
                 >
                   <button
                     onClick={(e) => deleteFile(e, f.table_id)}
@@ -882,6 +925,8 @@ function DataSelectionCanvas() {
               onNodeContextMenu={onNodeContextMenu}
               onEdgeClick={onEdgeClick}
               onPaneClick={closeNodeContextMenu}
+              nodesConnectable={canCreateRelationships}
+              elementsSelectable={true}
               nodeTypes={nodeTypes}
               fitView
               className="bg-gray-50"
@@ -1245,7 +1290,7 @@ function DataSelectionCanvas() {
                 setNodes([]);
                 setEdges([]);
                 setSelectedColumns(new Map());
-                const userId = user?.id || 'guest';
+                const userId = currentUser?.id || 'guest';
                 localStorage.removeItem(`${userId}_dataSelectionNodes`);
                 localStorage.removeItem(`${userId}_dataSelectionEdges`);
                 localStorage.removeItem(`${userId}_dataSelectionColumns`);
