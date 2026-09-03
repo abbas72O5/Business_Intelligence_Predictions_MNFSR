@@ -27,6 +27,7 @@ class Privileges(BaseModel):
     can_manage_users: bool = True
     can_view_activities: bool = True
     disabled_modules: Optional[list[str]] = None
+    module_permissions: Optional[dict[str, dict[str, bool]]] = None
 
 class AdminCreate(BaseModel):
     email: EmailStr

@@ -129,16 +129,30 @@ export default function DataUpload() {
     });
   };
 
+  const canUploadData = currentUser?.role === 'superadmin' || 
+                        currentUser?.role === 'user' || 
+                        (currentUser?.role === 'admin' && (currentUser?.privileges?.module_permissions?.['Data Uploading']?.can_upload_data ?? true));
+
+  const canPreviewData = currentUser?.role === 'superadmin' || 
+                         currentUser?.role === 'user' || 
+                         (currentUser?.role === 'admin' && (currentUser?.privileges?.module_permissions?.['Data Uploading']?.can_preview_data ?? true));
+
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
       'text/csv': ['.csv'],
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx']
     },
-    multiple: false
+    multiple: false,
+    disabled: !canUploadData
   });
 
   const handleSelectFile = async (fileMeta: TableMetadata) => {
+    if (!canPreviewData) {
+      setError('You do not have permission to preview data.');
+      setTimeout(() => setError(''), 3000);
+      return;
+    }
     setSelectedFile(fileMeta);
     setPreviewLoading(true);
     try {
@@ -168,25 +182,34 @@ export default function DataUpload() {
           {/* Dropzone */}
           <div
             {...getRootProps()}
-            className={`bg-white rounded-lg shadow-sm border p-8 text-center border-dashed border-2 cursor-pointer transition-colors ${isDragActive ? 'border-green-500 bg-green-50' : 'border-gray-300 hover:border-green-400'
-              }`}
+            className={`bg-white rounded-lg shadow-sm border p-8 text-center border-dashed border-2 transition-colors ${
+              !canUploadData 
+                ? 'border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed'
+                : isDragActive 
+                  ? 'border-green-500 bg-green-50 cursor-pointer' 
+                  : 'border-gray-300 hover:border-green-400 cursor-pointer'
+            }`}
           >
             <input {...getInputProps()} />
             {uploading ? (
               <Loader2 className="mx-auto h-12 w-12 text-green-600 animate-spin mb-4" />
             ) : (
-              <UploadCloud className={`mx-auto h-12 w-12 mb-4 ${isDragActive ? 'text-green-500' : 'text-gray-400'}`} />
+              <UploadCloud className={`mx-auto h-12 w-12 mb-4 ${!canUploadData ? 'text-gray-300' : isDragActive ? 'text-green-500' : 'text-gray-400'}`} />
             )}
             <h3 className="text-lg font-bold text-gray-900 mb-2">Upload Project Sheets</h3>
             <p className="text-gray-500 text-sm mb-4">
-              {isDragActive ? "Drop the file here..." : "Drag 'n' drop a CSV or Excel file here, or click to select."}
+              {!canUploadData 
+                ? "You do not have permission to upload data."
+                : isDragActive 
+                  ? "Drop the file here..." 
+                  : "Drag 'n' drop a CSV or Excel file here, or click to select."}
             </p>
             <button
               type="button"
-              disabled={uploading}
-              className="bg-green-800 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-900 transition-colors shadow-sm disabled:opacity-50"
+              disabled={uploading || !canUploadData}
+              className="bg-green-800 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-900 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {uploading ? 'Uploading...' : 'Browse Files'}
+              {!canUploadData ? 'Upload Disabled' : uploading ? 'Uploading...' : 'Browse Files'}
             </button>
             <p className="text-xs text-gray-400 mt-4">Supported formats: .xlsx, .csv</p>
           </div>

@@ -15,6 +15,7 @@ interface User {
     can_manage_users: boolean;
     can_view_activities: boolean;
     disabled_modules?: string[];
+    module_permissions?: Record<string, Record<string, boolean>>;
   };
 }
 

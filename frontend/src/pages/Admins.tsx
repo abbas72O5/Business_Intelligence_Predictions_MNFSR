@@ -7,6 +7,7 @@ interface Privileges {
   can_manage_users: boolean;
   can_view_activities: boolean;
   disabled_modules?: string[];
+  module_permissions?: Record<string, Record<string, boolean>>;
 }
 
 interface AdminData {
@@ -31,6 +32,7 @@ export default function Admins() {
 
   const [showModulePrivilegesModal, setShowModulePrivilegesModal] = useState(false);
   const [selectedModule, setSelectedModule] = useState<string | null>(null);
+  const [pendingModulePermissions, setPendingModulePermissions] = useState<Record<string, Record<string, boolean>>>({});
 
   const ALL_MODULES = [
     'Overview',
@@ -140,6 +142,53 @@ export default function Admins() {
       }
     } catch (err: any) {
       alert(err.response?.data?.detail || 'Failed to update module status');
+    }
+  };
+
+  const saveModulePrivileges = async (adminId: string, currentPrivileges: Privileges | null, moduleName: string) => {
+    const defaultPrivileges: Privileges = { can_manage_users: true, can_view_activities: true, disabled_modules: [] };
+    const privilegesToUpdate = currentPrivileges ? JSON.parse(JSON.stringify(currentPrivileges)) : defaultPrivileges;
+
+    if (!privilegesToUpdate.module_permissions) {
+      privilegesToUpdate.module_permissions = {};
+    }
+
+    if (!privilegesToUpdate.module_permissions[moduleName]) {
+      privilegesToUpdate.module_permissions[moduleName] = {};
+    }
+
+    const pendingForModule = pendingModulePermissions[moduleName] || {};
+    privilegesToUpdate.module_permissions[moduleName] = {
+      ...privilegesToUpdate.module_permissions[moduleName],
+      ...pendingForModule
+    };
+
+    try {
+      await axios.put(`http://localhost:8000/auth/admins/${adminId}/privileges`,
+        { privileges: privilegesToUpdate },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      setAdmins(prev => prev.map(a =>
+        a.id === adminId ? { ...a, privileges: privilegesToUpdate } : a
+      ));
+
+      if (selectedAdmin?.id === adminId) {
+        setSelectedAdmin(prev => prev ? { ...prev, privileges: privilegesToUpdate } : null);
+      }
+
+      // Log activity
+      const targetAdmin = admins.find(a => a.id === adminId);
+      if (targetAdmin) {
+        axios.post('http://localhost:8000/activities', {
+          action: 'Update Module Privileges',
+          details: { user: targetAdmin.email, module: moduleName }
+        }, { headers: { Authorization: `Bearer ${token}` } }).catch(e => console.error(e));
+      }
+
+      alert('Privileges updated successfully');
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Failed to update module privileges');
     }
   };
 
@@ -461,12 +510,71 @@ export default function Admins() {
                       </button>
                     </div>
 
-                    <div className="bg-white p-8 rounded-xl shadow-sm border border-gray-200 text-center">
-                      <div className="text-gray-500 flex flex-col items-center justify-center min-h-[200px]">
-                        <Settings className="h-12 w-12 text-gray-300 mb-4" />
-                        <p className="text-base font-medium text-gray-900"></p>
-                        <p className="text-sm mt-2"></p>
-                      </div>
+                    <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+                      {selectedModule === 'Data Uploading' ? (
+                        <div className="space-y-4">
+                          <h5 className="text-sm font-bold text-gray-900 border-b pb-2">Permissions</h5>
+
+                          <label className="flex items-center space-x-3 cursor-pointer p-2 hover:bg-gray-50 rounded-md transition-colors">
+                            <input
+                              type="checkbox"
+                              className="rounded border-gray-300 text-purple-600 focus:ring-purple-500 h-4 w-4"
+                              checked={
+                                pendingModulePermissions['Data Uploading']?.['can_upload_data'] !== undefined
+                                  ? pendingModulePermissions['Data Uploading']['can_upload_data']
+                                  : (selectedAdmin.privileges?.module_permissions?.['Data Uploading']?.['can_upload_data'] ?? true)
+                              }
+                              onChange={(e) => {
+                                setPendingModulePermissions(prev => ({
+                                  ...prev,
+                                  'Data Uploading': {
+                                    ...(prev['Data Uploading'] || {}),
+                                    can_upload_data: e.target.checked
+                                  }
+                                }));
+                              }}
+                            />
+                            <span className="text-sm font-medium text-gray-700">Can Upload Data</span>
+                          </label>
+
+                          <label className="flex items-center space-x-3 cursor-pointer p-2 hover:bg-gray-50 rounded-md transition-colors">
+                            <input
+                              type="checkbox"
+                              className="rounded border-gray-300 text-purple-600 focus:ring-purple-500 h-4 w-4"
+                              checked={
+                                pendingModulePermissions['Data Uploading']?.['can_preview_data'] !== undefined
+                                  ? pendingModulePermissions['Data Uploading']['can_preview_data']
+                                  : (selectedAdmin.privileges?.module_permissions?.['Data Uploading']?.['can_preview_data'] ?? true)
+                              }
+                              onChange={(e) => {
+                                setPendingModulePermissions(prev => ({
+                                  ...prev,
+                                  'Data Uploading': {
+                                    ...(prev['Data Uploading'] || {}),
+                                    can_preview_data: e.target.checked
+                                  }
+                                }));
+                              }}
+                            />
+                            <span className="text-sm font-medium text-gray-700">Can Preview Data</span>
+                          </label>
+
+                          <div className="pt-4 flex justify-end">
+                            <button
+                              onClick={() => saveModulePrivileges(selectedAdmin.id, selectedAdmin.privileges, 'Data Uploading')}
+                              className="bg-purple-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-purple-700 shadow-sm transition-colors"
+                            >
+                              Update Privileges
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-gray-500 flex flex-col items-center justify-center min-h-[200px]">
+                          <Settings className="h-12 w-12 text-gray-300 mb-4" />
+                          <p className="text-base font-medium text-gray-900">No granular privileges available</p>
+                          <p className="text-sm mt-2">This module currently relies on the global status (Enabled/Disabled).</p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ) : (
