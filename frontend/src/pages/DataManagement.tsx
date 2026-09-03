@@ -19,6 +19,15 @@ type StatusFilter = 'All' | 'Active' | 'Pending' | 'Inactive';
 
 export default function DataManagement() {
   const { token, user: currentUser } = useAuth();
+  
+  const canViewUploadedData = currentUser?.role === 'superadmin' || currentUser?.role === 'user' || (currentUser?.role === 'admin' && (currentUser?.privileges?.module_permissions?.['Data Management']?.view_uploaded_data ?? true));
+  const canPreviewUploadedData = currentUser?.role === 'superadmin' || currentUser?.role === 'user' || (currentUser?.role === 'admin' && (currentUser?.privileges?.module_permissions?.['Data Management']?.preview_uploaded_data ?? true));
+  const canImportUploadedData = currentUser?.role === 'superadmin' || currentUser?.role === 'user' || (currentUser?.role === 'admin' && (currentUser?.privileges?.module_permissions?.['Data Management']?.import_uploaded_data ?? true));
+  const canViewReports = currentUser?.role === 'superadmin' || currentUser?.role === 'user' || (currentUser?.role === 'admin' && (currentUser?.privileges?.module_permissions?.['Data Management']?.view_reports ?? true));
+  const canPreviewReports = currentUser?.role === 'superadmin' || currentUser?.role === 'user' || (currentUser?.role === 'admin' && (currentUser?.privileges?.module_permissions?.['Data Management']?.preview_reports ?? true));
+  const canImportReports = currentUser?.role === 'superadmin' || currentUser?.role === 'user' || (currentUser?.role === 'admin' && (currentUser?.privileges?.module_permissions?.['Data Management']?.import_reports ?? true));
+  const canExportReports = currentUser?.role === 'superadmin' || currentUser?.role === 'user' || (currentUser?.role === 'admin' && (currentUser?.privileges?.module_permissions?.['Data Management']?.export_reports ?? true));
+  const canCompileReports = currentUser?.role === 'superadmin' || currentUser?.role === 'user' || (currentUser?.role === 'admin' && (currentUser?.privileges?.module_permissions?.['Data Management']?.compile_reports ?? true));
   const [users, setUsers] = useState<UserData[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
@@ -234,7 +243,11 @@ export default function DataManagement() {
         {!isSelectionMode ? (
           <button
             onClick={() => setIsSelectionMode(true)}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 transition-colors"
+            disabled={!canCompileReports}
+            title={!canCompileReports ? "Permission denied" : ""}
+            className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm transition-colors ${
+              !canCompileReports ? 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-70' : 'text-white bg-green-600 hover:bg-green-700'
+            }`}
           >
             <Database className="h-4 w-4 mr-2" />
             Compile Reports
@@ -326,7 +339,8 @@ export default function DataManagement() {
                   <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-10">
                     <input 
                       type="checkbox"
-                      className="rounded border-gray-300 text-green-600 focus:ring-green-500 h-4 w-4"
+                      disabled={!canCompileReports}
+                      className={`rounded border-gray-300 focus:ring-green-500 h-4 w-4 ${!canCompileReports ? 'bg-gray-100 cursor-not-allowed text-gray-400' : 'text-green-600'}`}
                       checked={filteredUsers.length > 0 && selectedUserIds.length === filteredUsers.length}
                       onChange={(e) => {
                         if (e.target.checked) {
@@ -376,7 +390,8 @@ export default function DataManagement() {
                         <td className="px-6 py-4 whitespace-nowrap text-center">
                           <input 
                             type="checkbox"
-                            className="rounded border-gray-300 text-green-600 focus:ring-green-500 h-4 w-4"
+                            disabled={!canCompileReports}
+                            className={`rounded border-gray-300 focus:ring-green-500 h-4 w-4 ${!canCompileReports ? 'bg-gray-100 cursor-not-allowed text-gray-400' : 'text-green-600'}`}
                             checked={selectedUserIds.includes(u.id)}
                             onChange={(e) => {
                               if (e.target.checked) {
@@ -448,8 +463,11 @@ export default function DataManagement() {
                           {u.role === 'user' && (
                             <button
                               onClick={() => handleViewUserReports(u)}
-                              className="inline-flex items-center text-blue-600 hover:text-blue-900 bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-md transition-colors"
-                              title="View Monthly Reports"
+                              disabled={!canViewReports}
+                              title={!canViewReports ? "Permission denied" : "View Monthly Reports"}
+                              className={`inline-flex items-center px-3 py-1.5 rounded-md transition-colors ${
+                                !canViewReports ? 'text-gray-400 bg-gray-100 cursor-not-allowed opacity-70' : 'text-blue-600 hover:text-blue-900 bg-blue-50 hover:bg-blue-100'
+                              }`}
                             >
                               <FileText className="h-4 w-4 mr-1.5" />
                               Reports
@@ -458,8 +476,11 @@ export default function DataManagement() {
                           {(u.role === 'user' || u.role === 'admin') && (
                             <button
                               onClick={() => handleViewUserDatasets(u)}
-                              className="inline-flex items-center text-purple-600 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 px-3 py-1.5 rounded-md transition-colors"
-                              title="View Uploaded Data"
+                              disabled={!canViewUploadedData}
+                              title={!canViewUploadedData ? "Permission denied" : "View Uploaded Data"}
+                              className={`inline-flex items-center px-3 py-1.5 rounded-md transition-colors ${
+                                !canViewUploadedData ? 'text-gray-400 bg-gray-100 cursor-not-allowed opacity-70' : 'text-purple-600 hover:text-purple-900 bg-purple-50 hover:bg-purple-100'
+                              }`}
                             >
                               <Database className="h-4 w-4 mr-1.5" />
                               Data Uploaded
@@ -488,13 +509,23 @@ export default function DataManagement() {
                   <>
                     <button 
                       onClick={handleImportAllReports} 
-                      disabled={importingReport === targetUser.id}
-                      className="inline-flex items-center text-sm font-medium text-green-700 bg-green-100 hover:bg-green-200 px-3 py-1.5 rounded-md transition-colors shadow-sm disabled:opacity-50"
+                      disabled={importingReport === targetUser.id || !canImportReports}
+                      title={!canImportReports ? "Permission denied" : ""}
+                      className={`inline-flex items-center text-sm font-medium px-3 py-1.5 rounded-md transition-colors shadow-sm disabled:opacity-50 ${
+                        !canImportReports ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : 'text-green-700 bg-green-100 hover:bg-green-200'
+                      }`}
                     >
                       <Download className="h-4 w-4 mr-1.5" />
                       {importingReport === targetUser.id ? 'Importing...' : 'Import to Data Uploading'}
                     </button>
-                    <button onClick={handleExportUserReports} className="inline-flex items-center text-sm font-medium text-white bg-green-600 hover:bg-green-700 px-3 py-1.5 rounded-md transition-colors shadow-sm">
+                    <button 
+                      onClick={handleExportUserReports} 
+                      disabled={!canExportReports}
+                      title={!canExportReports ? "Permission denied" : ""}
+                      className={`inline-flex items-center text-sm font-medium px-3 py-1.5 rounded-md transition-colors shadow-sm disabled:opacity-50 ${
+                        !canExportReports ? 'bg-gray-200 text-gray-500 cursor-not-allowed' : 'text-white bg-green-600 hover:bg-green-700'
+                      }`}
+                    >
                       <Download className="h-4 w-4 mr-1.5" />
                       Export
                     </button>
@@ -546,7 +577,14 @@ export default function DataManagement() {
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{tBales.toFixed(2)}</td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-green-600 font-medium">Rs. {r.remitted_amount.toLocaleString()}</td>
                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                              <button onClick={() => setViewingReportDetails(r)} className="text-blue-600 hover:text-blue-900 inline-flex items-center">
+                              <button 
+                                onClick={() => setViewingReportDetails(r)}
+                                disabled={!canPreviewReports}
+                                title={!canPreviewReports ? "Permission denied" : ""}
+                                className={`inline-flex items-center ${
+                                  !canPreviewReports ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:text-blue-900'
+                                }`}
+                              >
                                 <Eye className="h-4 w-4 mr-1" /> View Details
                               </button>
                             </td>
@@ -612,7 +650,11 @@ export default function DataManagement() {
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             <button 
                               onClick={() => handleViewPreview(d)} 
-                              className="text-blue-600 hover:text-blue-900 inline-flex items-center bg-blue-50 hover:bg-blue-100 px-3 py-1.5 rounded-md transition-colors"
+                              disabled={!canPreviewUploadedData}
+                              title={!canPreviewUploadedData ? "Permission denied" : ""}
+                              className={`inline-flex items-center px-3 py-1.5 rounded-md transition-colors ${
+                                !canPreviewUploadedData ? 'text-gray-400 bg-gray-100 cursor-not-allowed opacity-70' : 'text-blue-600 hover:text-blue-900 bg-blue-50 hover:bg-blue-100'
+                              }`}
                             >
                               <Table className="h-4 w-4 mr-1.5" /> Preview
                             </button>
@@ -620,8 +662,11 @@ export default function DataManagement() {
                           <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                             <button 
                               onClick={() => handleImportDataset(d.table_id)} 
-                              disabled={importingDataset === d.table_id}
-                              className="text-green-600 hover:text-green-900 inline-flex items-center disabled:opacity-50 px-3 py-1.5 border border-green-200 bg-green-50 rounded-md"
+                              disabled={importingDataset === d.table_id || !canImportUploadedData}
+                              title={!canImportUploadedData ? "Permission denied" : ""}
+                              className={`inline-flex items-center px-3 py-1.5 border rounded-md disabled:opacity-50 ${
+                                !canImportUploadedData ? 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed' : 'border-green-200 bg-green-50 text-green-600 hover:text-green-900'
+                              }`}
                             >
                               <Download className="h-4 w-4 mr-1" /> {importingDataset === d.table_id ? 'Importing...' : 'Import'}
                             </button>
