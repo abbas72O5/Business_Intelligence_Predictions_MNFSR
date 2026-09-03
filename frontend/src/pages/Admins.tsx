@@ -33,6 +33,13 @@ export default function Admins() {
   const [showModulePrivilegesModal, setShowModulePrivilegesModal] = useState(false);
   const [selectedModule, setSelectedModule] = useState<string | null>(null);
   const [pendingModulePermissions, setPendingModulePermissions] = useState<Record<string, Record<string, boolean>>>({});
+  
+  const [toastMessage, setToastMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
+
+  const showToast = (text: string, type: 'success' | 'error' = 'success') => {
+    setToastMessage({ text, type });
+    setTimeout(() => setToastMessage(null), 3000);
+  };
 
   const ALL_MODULES = [
     'Overview',
@@ -137,8 +144,9 @@ export default function Admins() {
           details: { user: targetAdmin.email, module: moduleName }
         }, { headers: { Authorization: `Bearer ${token}` } }).catch(e => console.error(e));
       }
+      showToast(`Module ${privilegesToUpdate.disabled_modules.includes(moduleName) ? 'disabled' : 'enabled'} successfully`);
     } catch (err: any) {
-      alert(err.response?.data?.detail || 'Failed to update module status');
+      showToast(err.response?.data?.detail || 'Failed to update module status', 'error');
     }
   };
 
@@ -183,9 +191,9 @@ export default function Admins() {
         }, { headers: { Authorization: `Bearer ${token}` } }).catch(e => console.error(e));
       }
 
-      alert('Privileges updated successfully');
+      showToast('Privileges updated successfully');
     } catch (err: any) {
-      alert(err.response?.data?.detail || 'Failed to update module privileges');
+      showToast(err.response?.data?.detail || 'Failed to update module privileges', 'error');
     }
   };
 
@@ -674,6 +682,13 @@ export default function Admins() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Toast Notification */}
+      {toastMessage && (
+        <div className={`fixed top-4 left-1/2 -translate-x-1/2 px-6 py-3 rounded-lg shadow-xl text-white font-medium z-[9999] transition-all duration-300 ${toastMessage.type === 'success' ? 'bg-green-600' : 'bg-red-600'}`}>
+          {toastMessage.text}
         </div>
       )}
     </div>
