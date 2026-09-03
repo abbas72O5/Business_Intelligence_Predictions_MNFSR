@@ -14,6 +14,8 @@ interface MillProfile {
 
 export default function Profile() {
   const { token, user } = useAuth();
+  
+  const canUpdatePassword = user?.role === 'superadmin' || user?.role === 'user' || (user?.role === 'admin' && (user?.privileges?.module_permissions?.['Profile']?.update_password ?? true));
 
   // Password reset state
   const [passwordForm, setPasswordForm] = useState({ old_password: '', new_password: '' });
@@ -182,8 +184,13 @@ export default function Profile() {
           <div className="flex justify-end">
             <button
               type="submit"
-              disabled={savingPassword}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-bold rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600 disabled:opacity-50 transition-colors"
+              disabled={savingPassword || !canUpdatePassword}
+              title={!canUpdatePassword ? "Permission denied" : ""}
+              className={`inline-flex items-center px-4 py-2 border border-transparent text-sm font-bold rounded-md shadow-sm transition-colors ${
+                !canUpdatePassword 
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-70' 
+                  : 'text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-600 disabled:opacity-50'
+              }`}
             >
               {savingPassword ? 'Updating...' : 'Update Password'}
             </button>
