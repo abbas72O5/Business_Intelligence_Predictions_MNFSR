@@ -25,6 +25,12 @@ export default function Observations() {
   const [tables, setTables] = useState<TableMetadata[]>([]);
   const [models, setModels] = useState<any[]>([]);
 
+  const canAddVisual = user?.role === 'superadmin' || user?.role === 'user' || (user?.role === 'admin' && (user?.privileges?.module_permissions?.['Observations']?.add_visual ?? true));
+  const canExport = user?.role === 'superadmin' || user?.role === 'user' || (user?.role === 'admin' && (user?.privileges?.module_permissions?.['Observations']?.export ?? true));
+  const canSave = user?.role === 'superadmin' || user?.role === 'user' || (user?.role === 'admin' && (user?.privileges?.module_permissions?.['Observations']?.save ?? true));
+  const canLoad = user?.role === 'superadmin' || user?.role === 'user' || (user?.role === 'admin' && (user?.privileges?.module_permissions?.['Observations']?.load ?? true));
+  const canNewDashboard = user?.role === 'superadmin' || user?.role === 'user' || (user?.role === 'admin' && (user?.privileges?.module_permissions?.['Observations']?.new_dashboard ?? true));
+
   const loadState = (key: string, defaultVal: any) => {
     const userId = user?.id || 'guest';
     try {
@@ -504,26 +510,48 @@ export default function Observations() {
           {/* New Dashboard */}
           <button
             onClick={() => setShowNewDashboardModal(true)}
-            className="flex items-center bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-md font-medium transition-colors"
+            disabled={!canNewDashboard}
+            title={!canNewDashboard ? "Permission denied" : ""}
+            className={`flex items-center bg-white border border-gray-300 px-4 py-2 rounded-md font-medium transition-colors ${
+              !canNewDashboard ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50 text-gray-700'
+            }`}
           >
-            <PlusCircle className="h-5 w-5 mr-2 text-indigo-500" /> New
+            <PlusCircle className={`h-5 w-5 mr-2 ${!canNewDashboard ? 'text-gray-400' : 'text-indigo-500'}`} /> New
           </button>
 
           {/* Load Dashboard */}
-          <button onClick={openLoadModal} className="flex items-center bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-md font-medium transition-colors">
-            <FolderOpen className="h-5 w-5 mr-2 text-blue-500" /> Load
+          <button 
+            onClick={openLoadModal} 
+            disabled={!canLoad}
+            title={!canLoad ? "Permission denied" : ""}
+            className={`flex items-center bg-white border border-gray-300 px-4 py-2 rounded-md font-medium transition-colors ${
+              !canLoad ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50 text-gray-700'
+            }`}
+          >
+            <FolderOpen className={`h-5 w-5 mr-2 ${!canLoad ? 'text-gray-400' : 'text-blue-500'}`} /> Load
           </button>
 
           {/* Save Dashboard */}
-          <button onClick={() => activeDashboard ? saveDashboard() : setShowSaveModal(true)} className="flex items-center bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-md font-medium transition-colors">
-            <Save className="h-5 w-5 mr-2 text-green-500" /> {activeDashboard ? 'Save' : 'Save As'}
+          <button 
+            onClick={() => activeDashboard ? saveDashboard() : setShowSaveModal(true)} 
+            disabled={!canSave}
+            title={!canSave ? "Permission denied" : ""}
+            className={`flex items-center bg-white border border-gray-300 px-4 py-2 rounded-md font-medium transition-colors ${
+              !canSave ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50 text-gray-700'
+            }`}
+          >
+            <Save className={`h-5 w-5 mr-2 ${!canSave ? 'text-gray-400' : 'text-green-500'}`} /> {activeDashboard ? 'Save' : 'Save As'}
           </button>
 
           {/* Export Dropdown */}
           <div className="relative">
             <button
-              onClick={() => setShowExportMenu(!showExportMenu)}
-              className="flex items-center bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2 rounded-md font-medium transition-colors"
+              onClick={() => showExportMenu ? setShowExportMenu(false) : canExport && setShowExportMenu(true)}
+              disabled={!canExport}
+              title={!canExport ? "Permission denied" : ""}
+              className={`flex items-center bg-white border border-gray-300 px-4 py-2 rounded-md font-medium transition-colors ${
+                !canExport ? 'opacity-50 cursor-not-allowed' : 'hover:bg-gray-50 text-gray-700'
+              }`}
             >
               <Download className="h-5 w-5 mr-2 text-gray-500" /> Export <ChevronDown className="h-4 w-4 ml-1 text-gray-400" />
             </button>
@@ -543,7 +571,14 @@ export default function Observations() {
             )}
           </div>
 
-          <button onClick={addChart} className="flex items-center bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md font-medium transition-colors">
+          <button 
+            onClick={addChart} 
+            disabled={!canAddVisual}
+            title={!canAddVisual ? "Permission denied" : ""}
+            className={`flex items-center px-4 py-2 rounded-md font-medium transition-colors ${
+              !canAddVisual ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 text-white'
+            }`}
+          >
             <PlusCircle className="h-5 w-5 mr-2" /> Add Visual
           </button>
         </div>

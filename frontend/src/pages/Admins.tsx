@@ -577,6 +577,27 @@ export default function Admins() {
                             </button>
                           </div>
                         </div>
+                      ) : selectedModule === 'Observations' ? (
+                        <div className="space-y-4">
+                          <h5 className="text-sm font-bold text-gray-900 border-b pb-2">Permissions</h5>
+                          
+                          <div className="grid grid-cols-2 gap-2">
+                            {renderCheckbox('Observations', 'add_visual', 'Add Visual')}
+                            {renderCheckbox('Observations', 'export', 'Export')}
+                            {renderCheckbox('Observations', 'save', 'Save')}
+                            {renderCheckbox('Observations', 'load', 'Load')}
+                            {renderCheckbox('Observations', 'new_dashboard', 'New Dashboard')}
+                          </div>
+
+                          <div className="pt-4 flex justify-end">
+                            <button
+                              onClick={() => saveModulePrivileges(selectedAdmin.id, selectedAdmin.privileges, 'Observations')}
+                              className="bg-purple-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-purple-700 shadow-sm transition-colors"
+                            >
+                              Update Privileges
+                            </button>
+                          </div>
+                        </div>
                       ) : (
                         <div className="text-gray-500 flex flex-col items-center justify-center min-h-[200px]">
                           <Settings className="h-12 w-12 text-gray-300 mb-4" />
