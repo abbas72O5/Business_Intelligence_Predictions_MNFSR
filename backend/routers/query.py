@@ -455,13 +455,23 @@ def generate_folium_map(df, lat_col, lon_col, val_col, map_type):
     df = df.dropna(subset=[lat_col, lon_col])
     
     if df.empty:
-        m = folium.Map(location=[30.3753, 69.3451], zoom_start=4, tiles="CartoDB Positron")
+        m = folium.Map(
+            location=[30.3753, 69.3451], 
+            zoom_start=6, 
+            tiles='https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+            attr='Esri'
+        )
         return m._repr_html_()
         
     avg_lat = df[lat_col].mean()
     avg_lon = df[lon_col].mean()
     
-    m = folium.Map(location=[avg_lat, avg_lon], zoom_start=4, tiles="CartoDB Positron")
+    m = folium.Map(
+        location=[avg_lat, avg_lon], 
+        zoom_start=6, 
+        tiles='https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+        attr='Esri'
+    )
     
     if map_type == 'heat':
         from folium.plugins import HeatMap
