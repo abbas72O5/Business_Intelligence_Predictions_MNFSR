@@ -59,6 +59,8 @@ async def update_dashboard(dashboard_id: str, payload: Dict[str, Any], current_u
     
     # Fetch and return updated dashboard
     updated_dashboard = await db.dashboards.find_one({"dashboard_id": dashboard_id})
+    if not updated_dashboard:
+        raise HTTPException(status_code=404, detail="Dashboard not found")
     return DashboardMetadata(**updated_dashboard)
 
 @router.get("/", response_model=List[DashboardMetadata])
