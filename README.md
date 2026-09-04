@@ -132,5 +132,15 @@ Once both servers are running:
   - **Centralized Data Hub:** Consolidated user-uploaded datasets and submitted Monthly Reports into a single, high-level "Data Management" workspace accessible exclusively to administrative tiers.
   - **One-Click ETL Ingestion:** Admins can preview user-submitted files and invoke a 1-click "Import to Data Uploading" pipeline. This automatically extracts raw JSON/CSV and legacy Python Numpy structures, casts them into standard primitives, and aggregates them into high-performance analytical Parquet files ready for the DuckDB engine.
 
+- **Granular Action-Level Permissions (Sub-Privileges):**
+  - **Micro-Permissions:** Superadmins can now enforce extremely granular access controls within specific modules. Capabilities like compiling reports, exporting data, creating visual bins, saving layouts, or updating passwords can be individually toggled for each Admin.
+  - **Graceful UI Degradation:** Instead of hiding UI elements (which causes layout shifting), restricted buttons gracefully transition into disabled states (`cursor-not-allowed`, reduced opacity) and display custom tooltips indicating "Permission denied".
+  - **Secured Canvas Interactions:** In the Data Selection and Predictions modules, the granular permission system seamlessly intercepts complex interactions—such as dragging nodes or saving dynamic states—and safely blocks them without throwing fatal client errors.
+
+- **Comprehensive Audit Trail Ecosystem:**
+  - **Action Tracking:** Deployed an extensive activity logging architecture that quietly records both high-level configuration changes (like toggling module access) and granular user activities (like successful Sign-ins, password updates, and profile modifications).
+  - **Superadmin Oversight:** All logged activities are automatically piped into a centralized "Audit Logs" datatable, providing Superadmins with perfect oversight of platform usage and administrative configurations.
+
 - **Aesthetic UI Modernization:**
   - **Custom Notification Ecosystem:** Systematically ripped out all legacy browser `alert()` popups across the application, replacing them with custom, DOM-integrated notification banners that perfectly match the application's clean, green branding aesthetic.
+  - **Fixed Sliding Toasts:** Deployed a global top-center fixed toast notification architecture (with elevated `z-index` and fluid CSS transitions) that drops down elegantly without triggering ugly DOM layout shifts or interfering with the background UI.

@@ -432,9 +432,9 @@ export default function DataManagement() {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center text-sm text-gray-900 capitalize">
                           {u.role === 'superadmin' ? (
-                            <ShieldAlert className="h-4 w-4 mr-1.5 text-purple-600" />
+                            <ShieldAlert className="h-4 w-4 mr-1.5 text-green-600" />
                           ) : u.role === 'admin' ? (
-                            <Shield className="h-4 w-4 mr-1.5 text-blue-600" />
+                            <Shield className="h-4 w-4 mr-1.5 text-green-600" />
                           ) : (
                             <div className="h-4 w-4 mr-1.5" />
                           )}
@@ -466,7 +466,7 @@ export default function DataManagement() {
                               disabled={!canViewReports}
                               title={!canViewReports ? "Permission denied" : "View Monthly Reports"}
                               className={`inline-flex items-center px-3 py-1.5 rounded-md transition-colors ${
-                                !canViewReports ? 'text-gray-400 bg-gray-100 cursor-not-allowed opacity-70' : 'text-blue-600 hover:text-blue-900 bg-blue-50 hover:bg-blue-100'
+                                !canViewReports ? 'text-gray-400 bg-gray-100 cursor-not-allowed opacity-70' : 'text-green-600 hover:text-green-900 bg-green-50 hover:bg-green-100'
                               }`}
                             >
                               <FileText className="h-4 w-4 mr-1.5" />
@@ -479,7 +479,7 @@ export default function DataManagement() {
                               disabled={!canViewUploadedData}
                               title={!canViewUploadedData ? "Permission denied" : "View Uploaded Data"}
                               className={`inline-flex items-center px-3 py-1.5 rounded-md transition-colors ${
-                                !canViewUploadedData ? 'text-gray-400 bg-gray-100 cursor-not-allowed opacity-70' : 'text-purple-600 hover:text-purple-900 bg-purple-50 hover:bg-purple-100'
+                                !canViewUploadedData ? 'text-gray-400 bg-gray-100 cursor-not-allowed opacity-70' : 'text-green-600 hover:text-green-900 bg-green-50 hover:bg-green-100'
                               }`}
                             >
                               <Database className="h-4 w-4 mr-1.5" />
@@ -582,7 +582,7 @@ export default function DataManagement() {
                                 disabled={!canPreviewReports}
                                 title={!canPreviewReports ? "Permission denied" : ""}
                                 className={`inline-flex items-center ${
-                                  !canPreviewReports ? 'text-gray-400 cursor-not-allowed' : 'text-blue-600 hover:text-blue-900'
+                                  !canPreviewReports ? 'text-gray-400 cursor-not-allowed' : 'text-green-600 hover:text-green-900'
                                 }`}
                               >
                                 <Eye className="h-4 w-4 mr-1" /> View Details
@@ -653,7 +653,7 @@ export default function DataManagement() {
                               disabled={!canPreviewUploadedData}
                               title={!canPreviewUploadedData ? "Permission denied" : ""}
                               className={`inline-flex items-center px-3 py-1.5 rounded-md transition-colors ${
-                                !canPreviewUploadedData ? 'text-gray-400 bg-gray-100 cursor-not-allowed opacity-70' : 'text-blue-600 hover:text-blue-900 bg-blue-50 hover:bg-blue-100'
+                                !canPreviewUploadedData ? 'text-gray-400 bg-gray-100 cursor-not-allowed opacity-70' : 'text-green-600 hover:text-green-900 bg-green-50 hover:bg-green-100'
                               }`}
                             >
                               <Table className="h-4 w-4 mr-1.5" /> Preview

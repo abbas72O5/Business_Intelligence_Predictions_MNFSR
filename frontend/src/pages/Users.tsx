@@ -210,7 +210,7 @@ export default function Users() {
             {currentUser?.role === 'superadmin' && (
               <button
                 onClick={() => setShowAdminModal(true)}
-                className="inline-flex items-center px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium rounded-md shadow-sm transition-colors"
+                className="inline-flex items-center px-4 py-2 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-md shadow-sm transition-colors"
               >
                 <UserPlus className="h-4 w-4 mr-2" />
                 Create Admin
@@ -333,9 +333,9 @@ export default function Users() {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center text-sm text-gray-900 capitalize">
                           {u.role === 'superadmin' ? (
-                            <ShieldAlert className="h-4 w-4 mr-1.5 text-purple-600" />
+                            <ShieldAlert className="h-4 w-4 mr-1.5 text-green-600" />
                           ) : u.role === 'admin' ? (
-                            <Shield className="h-4 w-4 mr-1.5 text-blue-600" />
+                            <Shield className="h-4 w-4 mr-1.5 text-green-600" />
                           ) : (
                             <div className="h-4 w-4 mr-1.5" />
                           )}

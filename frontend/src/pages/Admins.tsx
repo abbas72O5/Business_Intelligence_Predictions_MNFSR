@@ -234,7 +234,7 @@ export default function Admins() {
       <label key={permKey} className="flex items-center space-x-3 cursor-pointer p-2 hover:bg-gray-50 rounded-md transition-colors">
         <input
           type="checkbox"
-          className="rounded border-gray-300 text-purple-600 focus:ring-purple-500 h-4 w-4"
+          className="rounded border-gray-300 text-green-600 focus:ring-green-500 accent-green-600 h-4 w-4"
           checked={
             pendingModulePermissions[moduleName]?.[permKey] !== undefined
               ? pendingModulePermissions[moduleName][permKey]
@@ -463,7 +463,7 @@ export default function Admins() {
                     setSelectedModule(ALL_MODULES[0]);
                     setShowModulePrivilegesModal(true);
                   }}
-                  className="bg-purple-100 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-purple-700 hover:bg-purple-200 focus:outline-none transition-colors"
+                  className="bg-green-100 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-green-700 hover:bg-green-200 focus:outline-none transition-colors"
                 >
                   Module Privileges
                 </button>
@@ -506,7 +506,7 @@ export default function Admins() {
                       <button
                         onClick={() => setSelectedModule(mod)}
                         className={`w-full text-left px-5 py-4 text-sm font-medium transition-colors flex items-center justify-between ${selectedModule === mod
-                          ? 'bg-purple-50 text-purple-700 border-l-4 border-purple-500'
+                          ? 'bg-green-50 text-green-700 border-l-4 border-green-500'
                           : 'text-gray-700 hover:bg-gray-50 border-l-4 border-transparent'
                           }`}
                       >
@@ -553,7 +553,7 @@ export default function Admins() {
                           <div className="pt-4 flex justify-end">
                             <button
                               onClick={() => saveModulePrivileges(selectedAdmin.id, selectedAdmin.privileges, 'Data Uploading')}
-                              className="bg-purple-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-purple-700 shadow-sm transition-colors"
+                              className="bg-green-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-700 shadow-sm transition-colors"
                             >
                               Update Privileges
                             </button>
@@ -576,7 +576,7 @@ export default function Admins() {
                           <div className="pt-4 flex justify-end">
                             <button
                               onClick={() => saveModulePrivileges(selectedAdmin.id, selectedAdmin.privileges, 'Data Selection')}
-                              className="bg-purple-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-purple-700 shadow-sm transition-colors"
+                              className="bg-green-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-700 shadow-sm transition-colors"
                             >
                               Update Privileges
                             </button>
@@ -597,7 +597,7 @@ export default function Admins() {
                           <div className="pt-4 flex justify-end">
                             <button
                               onClick={() => saveModulePrivileges(selectedAdmin.id, selectedAdmin.privileges, 'Observations')}
-                              className="bg-purple-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-purple-700 shadow-sm transition-colors"
+                              className="bg-green-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-700 shadow-sm transition-colors"
                             >
                               Update Privileges
                             </button>
@@ -618,7 +618,7 @@ export default function Admins() {
                           <div className="pt-4 flex justify-end">
                             <button
                               onClick={() => saveModulePrivileges(selectedAdmin.id, selectedAdmin.privileges, 'Predictions')}
-                              className="bg-purple-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-purple-700 shadow-sm transition-colors"
+                              className="bg-green-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-700 shadow-sm transition-colors"
                             >
                               Update Privileges
                             </button>
@@ -642,7 +642,7 @@ export default function Admins() {
                           <div className="pt-4 flex justify-end">
                             <button
                               onClick={() => saveModulePrivileges(selectedAdmin.id, selectedAdmin.privileges, 'Data Management')}
-                              className="bg-purple-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-purple-700 shadow-sm transition-colors"
+                              className="bg-green-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-700 shadow-sm transition-colors"
                             >
                               Update Privileges
                             </button>
@@ -659,7 +659,7 @@ export default function Admins() {
                           <div className="pt-4 flex justify-end">
                             <button
                               onClick={() => saveModulePrivileges(selectedAdmin.id, selectedAdmin.privileges, 'Profile')}
-                              className="bg-purple-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-purple-700 shadow-sm transition-colors"
+                              className="bg-green-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-700 shadow-sm transition-colors"
                             >
                               Update Privileges
                             </button>
